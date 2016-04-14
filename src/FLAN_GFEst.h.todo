@@ -1,0 +1,241 @@
+/**
+  * FLAN Software
+  *
+  * @author 2015-2020 Adrien Mazoyer  <adrien.mazoyer@imag.fr> 
+  * @see The GNU Public License (GPL)
+  */
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
+#ifndef FLAN_GFEST_H
+#define FLAN_GFEST_H
+
+#include "FLAN_MutationModel.h"
+
+
+// DEFINE_SPTR(FLAN_GFEst);
+
+class FLAN_GFEst : {
+//   SP_OBJECT(FLAN_GFEst);
+  
+  private: 
+
+    double mZ1,mZ2,mZ3,mQ;
+    
+    double mDeath,mMfn,mCvfn,mY;
+
+    FLAN_MutationModel* mMutModel;
+    
+    
+    // require root equation solver
+    // SP::MATH_ZeroEquation mSolver;
+    
+    
+  protected: 
+    // METHODS
+  
+    // CONSTRUCTORS 
+  
+    /*! \brief  create an object */
+    FLAN_GFEst();
+    
+    FLAN_GFEst(double death,double mfn,double cvfn,std::string model);
+    
+    // DESTRUCTORS 
+  
+  
+    /*! \brief  destroy an object.
+     */
+    virtual ~FLAN_GFEst();   
+    
+    
+  
+    
+  public:
+    
+    // --------------------------------------------------------------------------------------------------------------
+    /////////////////////////////////////// Generating Function estimation method ///////////////////////////////////
+    // --------------------------------------------------------------------------------------------------------------
+    
+    /* Returns the GF-method estimate of the mean number of mutations alpha for a sample 
+     *  of mutants counts, given as vector mc, with given fitness rho and death probability death.
+     * This estimate does not depend of the final count of cells.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (gld) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of alpha is returned together with its standard deviation sd_alpha
+     */
+    
+      void mutationsNumberGFEstimation(const std::vector<long int>& mutantCount,
+					 const double& rho,const double& death,
+					 double& alpha,double& sd_alpha) const;
+
+       
+
+    /* Returns the GF-method estimate of the probability of mutations pi for a sample 
+     *  of mutants counts, given as vector mc, with given fitness rho and death probability death.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (gld) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of pi is returned together with its standard deviation sd_pi
+     * If cvfn is non zero, there is a correction for the estimate pi and its standard deviations.
+     */
+    
+    // Arguments : sample of mutants counts and sample of final counts
+      void mutationProbabilityGFEstimation(const std::vector<long int>& mutantCount,
+					   const std::vector<double>& finalCount,
+					   const double& rho, const double& death,
+					   double& pi,double& sd_pi) const {
+        
+        
+	double mfn, sdfn,cvfn;
+	mfn=std::accumulate(finalCount.begin(),finalCount.end(),0.)/finalCount.size();
+	sdfn=std::sqrt(std::inner_procuct(finalCount.begin(),finalCount.end(),finalCount.begin(),0.)/finalCount.size()-mfn^2);
+	
+	cvfn=sdfn/mfn;
+	
+	mutationProbabilityGFEstimation(mutantCount,mfn,cvfn,rho,death,pi,sd_pi);
+    };
+    
+    // Arguments : sample of mutants counts, mean of final counts  and coefficient of variation of final counts
+    void mutationProbabilityGFEstimation(const std::vector<long int>& mutantCount,
+					 const double& mfn,
+					 const double& cvfn,
+					 const double& rho,const double& death,
+					 double& pi,double& sd_pi) const;
+
+    /* Returns the GF-method estimate of the mean number of mutations alpha and the fitness parameter rho for a sample 
+     *  of mutants counts, given as vector mc.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (gld) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of alpha and rho are returned together with their standard deviations sd_alpha and sd_rho
+     * If cvfn is non zero, there is a correction for the both estimates and their standard deviations.
+     */
+        
+    // Arguments : sample of mutants counts
+    bool mutationsNumberFitnessGFEstimation(const std::vector<long int>& mutantCount,
+                                                const double& death,
+                                                double& alpha, double& rho,
+                                                double& sd_alpha,double& sd_rho) const;
+     
+    /* Returns the GF-method estimate of the probability of mutations pi and the fitness parameter rho for a sample 
+     *  of mutants counts, given as vector mc.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (gld) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of pi and rho are returned together with their standard deviations sd_pi and sd_rho
+     * If cvfn is non zero, there is a correction for the both estimates and their standard deviations.
+     */
+
+    // Arguments :  sample of mutants counts and sample of final counts
+    bool mutationProbabilityFitnessGFEstimation(const std::vector<long int>& mutantCount,
+                                                const std::vector<double>& finalCount,
+                                                const double& death,
+                                                double& pi,double& rho,
+                                                double& sd_pi,double& sd_rho) const {
+        
+	double mfn, sdfn,cvfn;
+	mfn=std::accumulate(finalCount.begin(),finalCount.end(),0.)/finalCount.size();
+	sdfn=std::sqrt(std::inner_procuct(finalCount.begin(),finalCount.end(),finalCount.begin(),0.)/finalCount.size()-mfn^2);
+	
+	cvfn=sdfn/mfn;
+        return mutationProbabilityFitnessGFEstimation(mutantCount,mfn,cvfn,death,pi,rho,sd_pi,sd_rho);
+        
+    }
+
+    // Arguments : sample of mutants counts, mean of final counts  coefficient of variation of final counts
+    bool mutationProbabilityFitnessGFEstimation(const std::vector<long int>& mutantCount,
+                                                const double& mfn,
+                                                const double& cvfn,
+                                                const double& death,
+                                                double& pi,double& rho,
+                                                double& sd_pi,double& sd_rho) const;
+
+    
+  
+private:
+    /*! \brief mutations mean number estimation
+     */
+    inline double alphaEstimation(const std::vector<long int>& mutantCount,const double& rho,const double& death,const double& scale) const {
+        
+      double alpha=0;
+      double s=0;
+      double z3=pow(mZ3,1./scale);
+      int n=sample.getSize();
+      Rcpp::Xptr<FLAN_Clone> clone=mMutModel->getClone();
+      
+//         double y;
+      if (n>0) {
+	  for (int k=0;k<n;k++) {
+//                 y=((double)sample[k])/scale;
+	      s+=pow(z3,mutantCount[k]);
+	  }
+	  s/=n;
+//             double logs=log(s);
+	  alpha=log(s)/(clone->computeCumulativeFunction(z3,rho,death)-1);
+	  
+      }
+      
+      return alpha;
+    };
+    
+    /*! \brief relative fitness estimation
+     */
+    inline bool rhoEstimation(const std::vector<long int>& mutantCount,const double& death,const double& scale,double& rho) const {
+        
+      double s1,s2,y;
+      double z1=pow(mZ1,1./scale);
+      double z2=pow(mZ2,1./scale);
+      
+      int n=sample.getSize();
+      Rcpp::Xptr<FLAN_Clone> clone=mMutModel->getClone();
+      
+      if (n>0) {
+	  s1=0;s2=0;
+	  for (int k=0;k<n;k++) {
+//                 y=((double)sample[k])/scale;
+	      s1+=pow(z1,mutantCount[k]);
+	      s2+=pow(z2,mutantCount[k]);
+	      //cout << "s1["<<k<<"]"<<s1<<"+=pow("<<mZ1<<","<<y<<")="<<pow(mZ1,y)<<" sample="<<sample[k]<<"\n";
+	      //cout << "s2["<<k<<"]"<<s2<<"+=pow("<<mZ2<<","<<y<<")="<<pow(mZ2,y)<<"\n"; 
+	  }
+	  s1/=n;
+	  s2/=n;
+	  y=log(s1)/log(s2);
+	  
+	  return clone->solveCumulativeFunctionEquation(z1,z2,death,y,rho);
+      }
+      
+      return false;
+  };
+    
+						
+    inline double quantile(const std::vector<long int>& mutantCount,const double& q){
+      
+      int n=mutantCount.size();
+      if(n == 0) return 0.;
+      if(n == 1) return mutantCount[0];
+      
+      double pos = (n - 1) * q;
+      int ind = (int) pos;
+      double delta = pos - ind;
+      std::vector<double> w(n); 
+      
+      std::copy(mutantCount.begin(), mutantCount.begin() + size, w.begin());
+      
+      std::nth_element(w.begin(), w.begin() + ind, w.end());
+      double i1 = *(w.begin() + ind);
+      double i2 = *std::min_element(w.begin() + ind + 1, w.end());
+      return i1 * (1.0 - delta) + i2 * delta;
+      
+    };
+#endif

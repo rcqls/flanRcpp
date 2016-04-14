@@ -1,0 +1,1263 @@
+#include "R_Class.h"
+#include "UI_ClassFactory.h"
+
+#include "MRE_GLDDiracDistribution.h"
+#include "MRE_GLDExponentialDistribution.h"
+
+#include "MRE_GYExponentialDistribution.h"
+#include "MRE_GYDiracDistribution.h"
+
+#include "MRE_LogNormalMutant.h"
+
+#include "STAT_LogNormalDistribution.h"
+#include "STAT_DiracDistribution.h"
+#include "STAT_GammaDistribution.h"
+#include "STAT_ExponentialDistribution.h"
+
+
+
+
+#include <sstream>
+
+#define SOFT_CLASS R_Class
+
+
+    // --------------------------------------------------------------------------------------------------------------
+    //////////////////////////////////////////// Estimation functions ///////////////////////////////////////////////
+    // --------------------------------------------------------------------------------------------------------------
+
+
+    /* Estimates by maximizing the likelihhod the mean number of mutations or the probability of mutation, and the fitness :
+     *   - A death probability death
+     *   - A lifetimes distribution model : exponentialy distributed lifetime ("LD") or constant lifetime "H"
+     *   - sample of mutants counts
+     *   - sample of finals counts (or a mean and coeffcient of variation of finals counts)
+     * Returns : 
+     *   - Estimate of mutations (or mutprob) and fitness
+     *   - Standard deviation of mutations (or mutprob) and fitness
+     */
+    
+RcppExport SEXP MutationFitnessMLOptimization(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        
+        // argument index
+        int iarg=0;
+           
+        
+        // data set
+        SP::MRE_DataSet dataSet=MRE_DataSet::New();
+      
+       
+       
+        //mutation counts mc
+        tBoolean isCopied=false;
+        int n=0;
+        tLong *mc=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,mc,isCopied)) {
+            dataSet->setMutantCellsNumber(n,mc);
+            //cout << dataSet->getMutantCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "mc reading failed.\n";
+        }
+        
+        
+        //  final numbers
+        isCopied=false;
+        tReal *fn=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,fn,isCopied)) {
+            dataSet->setCellsNumber(n,fn);
+            //cout << dataSet->getCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "fn reading failed.\n";
+        }
+
+        std::string optimizerName;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getString(optimizerName);
+        SP::MATH_OptimizationMethod optimizer=MATH_BFGS::New();
+        
+      
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0) gld=MRE_GLDExponentialDistribution::New();
+            else gld=MRE_GLDDiracDistribution::New();
+        }
+        //cout << "model:"<<model<<"\n";
+        
+        // probability of death
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        //cout << "death:"<<death<<"\n";
+        
+	// max clones number
+        int maxClonesNumber;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(maxClonesNumber);
+
+        //is death optimized
+        tBoolean isDeathOptimized=false;
+        // uiClass->setData(prhs[iarg]);
+        // iarg++;
+        // uiClass->getScalar(isDeathOptimized);
+
+        // confidence level; (not needed to be read)
+//         tReal level;
+//         uiClass->setData(prhs[iarg]);
+//         iarg++;
+//         uiClass->getScalar(level);
+
+        // if WithProb is true : compute alpha and pi estimate
+        // else compute only alpha estimate
+        tBoolean WithProbFn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbFn);
+	
+	
+	tBoolean WithProbStat;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbStat);
+	
+	if(WithProbStat) {
+	 // mean final number used when fc is empty
+	  tReal mfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(mfn)) {
+	      dataSet->setMeanFinalNumber(mfn);
+	  }
+// 	  cout << "mfn:"<<dataSet->getMeanFinalNumber()<<"\n";
+	  
+	  // coeficient of variation of final members used when fc is empty
+	  tReal cvfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(cvfn)) {
+	      dataSet->setVariationCoefficientFinalNumber(cvfn);
+	  }
+//         cout << "cvfn:"<<dataSet->getVariationCoefficientFinalNumber()<<"\n"; 
+	}
+	
+	tBoolean WithProb=WithProbFn || WithProbStat;
+        
+	tReal alphapi=0,sd_alphapi=0,alphapi0=0;
+        tReal rho=0,sd_rho=0,rho0=0;
+        tReal death0=death;
+        tReal sd_death=0;
+	tBoolean succeeds=true;
+//         tReal ll=0;
+       
+        // method of estimation
+       
+        SP::MRE_LogNormalMutant mutant=MRE_LogNormalMutant::New();
+	dataSet->winsorize(maxClonesNumber);
+	
+	if (WithProb) {
+	    succeeds=mutant->mutationProbabilityFitnessMLOptimization(optimizer,dataSet,gld,alphapi0,rho0,death0,
+                                                                 isDeathOptimized,
+                                                                 alphapi,rho,death,
+                                                                 sd_alphapi,sd_rho,sd_death);
+        } else {
+	    succeeds=mutant->mutationsNumberFitnessMLOptimization(optimizer,dataSet->getMutantCellsNumber(),gld,alphapi0,rho0,death0,
+                                                             isDeathOptimized,
+                                                             alphapi,rho,death,
+                                                             sd_alphapi,sd_rho,sd_death);
+        }
+	
+	
+	saver->createClass("");
+	if(WithProb){
+	  saver->saveField("mutprob",alphapi);
+	  saver->saveField("sd.mutprob",sd_alphapi);
+	} else {
+	  saver->saveField("mutations",alphapi);
+	  saver->saveField("sd.mutations",sd_alphapi);
+	}	
+	saver->saveField("fitness",rho);
+	saver->saveField("sd.fitness",sd_rho);
+	saver->saveField("succeeds",succeeds);
+	saver->finalize();	  
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+
+
+RcppExport SEXP MutationFitnessGFEstimation(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        
+        // argument index
+        int iarg=0;
+           
+        
+        // data set
+        SP::MRE_DataSet dataSet=MRE_DataSet::New();
+      
+       
+       
+        //mutation counts mc
+        tBoolean isCopied=false;
+        int n=0;
+        tLong *mc=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,mc,isCopied)) {
+            dataSet->setMutantCellsNumber(n,mc);
+            //cout << dataSet->getMutantCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "mc reading failed.\n";
+        }
+        
+        
+        //  final numbers
+        isCopied=false;
+        tReal *fn=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,fn,isCopied)) {
+            dataSet->setCellsNumber(n,fn);
+            //cout << dataSet->getCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "fn reading failed.\n";
+        }
+
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0) gld=MRE_GLDExponentialDistribution::New();
+            else gld=MRE_GLDDiracDistribution::New();
+        }
+        //cout << "model:"<<model<<"\n";
+        
+        // probability of death
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        //cout << "death:"<<death<<"\n";
+        
+        //is death optimized
+        //tBoolean isDeathOptimized=false;
+        // uiClass->setData(prhs[iarg]);
+        // iarg++;
+        // uiClass->getScalar(isDeathOptimized);
+
+        // confidence level; (not needed to be read)
+//         tReal level;
+//         uiClass->setData(prhs[iarg]);
+//         iarg++;
+//         uiClass->getScalar(level);
+
+        // if WithProb is true : compute alpha and pi estimate
+        // else compute only alpha estimate
+        tBoolean WithProbFn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbFn);
+	
+	
+	tBoolean WithProbStat;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbStat);
+	
+	if(WithProbStat) {
+	 // mean final number used when fc is empty
+	  tReal mfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(mfn)) {
+	      dataSet->setMeanFinalNumber(mfn);
+	  }
+// 	  cout << "mfn:"<<dataSet->getMeanFinalNumber()<<"\n";
+	  
+	  // coeficient of variation of final members used when fc is empty
+	  tReal cvfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(cvfn)) {
+	      dataSet->setVariationCoefficientFinalNumber(cvfn);
+	  }
+//         cout << "cvfn:"<<dataSet->getVariationCoefficientFinalNumber()<<"\n"; 
+	}
+	
+	tBoolean WithProb=WithProbFn || WithProbStat;
+        
+	tReal alphapi=0,sd_alphapi=0;
+        tReal rho=0,sd_rho=0;
+	tBoolean succeeds=true;
+       
+        // method of estimation
+       
+        SP::MRE_LogNormalMutant mutant=MRE_LogNormalMutant::New();
+        	
+	if (WithProb) {
+	    succeeds=mutant->mutationProbabilityFitnessGFEstimation(dataSet,gld,death,alphapi,rho,sd_alphapi,sd_rho);
+        } else {
+            succeeds=mutant->mutationsNumberFitnessGFEstimation(dataSet->getMutantCellsNumber(),*gld.get(),death,alphapi,rho,sd_alphapi,sd_rho);
+        }
+	
+	
+	saver->createClass("");
+	if(WithProb){
+	  saver->saveField("mutprob",alphapi);
+	  saver->saveField("sd.mutprob",sd_alphapi);
+	} else {
+	  saver->saveField("mutations",alphapi);
+	  saver->saveField("sd.mutations",sd_alphapi);
+	}	
+	saver->saveField("fitness",rho);
+	saver->saveField("sd.fitness",sd_rho);
+	saver->saveField("succeeds",succeeds);
+	saver->finalize();	  
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+
+RcppExport SEXP MutationMLOptimization(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        
+        // argument index
+        int iarg=0;
+           
+        
+        // data set
+        SP::MRE_DataSet dataSet=MRE_DataSet::New();
+      
+       
+       
+        //mutation counts mc
+        tBoolean isCopied=false;
+        int n=0;
+        tLong *mc=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,mc,isCopied)) {
+            dataSet->setMutantCellsNumber(n,mc);
+            //cout << dataSet->getMutantCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "mc reading failed.\n";
+        }
+        
+        
+        //  final numbers
+        isCopied=false;
+        tReal *fn=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,fn,isCopied)) {
+            dataSet->setCellsNumber(n,fn);
+            //cout << dataSet->getCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "fn reading failed.\n";
+        }
+
+        std::string optimizerName;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getString(optimizerName);
+        SP::MATH_OptimizationMethod optimizer=MATH_BFGS::New();
+        
+      
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0) gld=MRE_GLDExponentialDistribution::New();
+            else gld=MRE_GLDDiracDistribution::New();
+        }
+        //cout << "model:"<<model<<"\n";
+        
+        // fitness parameter
+        tReal rho;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(rho);
+        
+        
+        // probability of death
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        //cout << "death:"<<death<<"\n";
+        
+	// max clones number
+        int maxClonesNumber;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(maxClonesNumber);
+
+        //is death optimized
+        tBoolean isDeathOptimized=false;
+        // uiClass->setData(prhs[iarg]);
+        // iarg++;
+        // uiClass->getScalar(isDeathOptimized);
+
+        // confidence level; (not needed to be read)
+//         tReal level;
+//         uiClass->setData(prhs[iarg]);
+//         iarg++;
+//         uiClass->getScalar(level);
+
+        // if WithProb is true : compute alpha and pi estimate
+        // else compute only alpha estimate
+        tBoolean WithProbFn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbFn);
+	
+	
+	tBoolean WithProbStat;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbStat);
+	
+	if(WithProbStat) {
+	 // mean final number used when fc is empty
+	  tReal mfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(mfn)) {
+	      dataSet->setMeanFinalNumber(mfn);
+	  }
+// 	  cout << "mfn:"<<dataSet->getMeanFinalNumber()<<"\n";
+	  
+	  // coeficient of variation of final members used when fc is empty
+	  tReal cvfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(cvfn)) {
+	      dataSet->setVariationCoefficientFinalNumber(cvfn);
+	  }
+//         cout << "cvfn:"<<dataSet->getVariationCoefficientFinalNumber()<<"\n"; 
+	}
+	
+	tBoolean WithProb=WithProbFn || WithProbStat;
+        
+	tReal alphapi=0,sd_alphapi=0,alphapi0=0;
+        tReal death0=death;
+        tReal sd_death=0;
+//         tReal ll=0;
+       
+        // method of estimation
+       
+        SP::MRE_LogNormalMutant mutant=MRE_LogNormalMutant::New();
+	dataSet->winsorize(maxClonesNumber);
+	if (WithProb) {
+	  mutant->mutationProbabilityMLOptimization(optimizer,dataSet,gld,alphapi0,rho,death0,
+                                                  isDeathOptimized,
+// 						  ll,
+                                                  alphapi,death,
+                                                  sd_alphapi,sd_death);      
+        } else {
+            mutant->mutationsNumberMLOptimization(optimizer,dataSet->getMutantCellsNumber(),gld,alphapi0,rho,death0,
+                                                  isDeathOptimized,
+// 						  ll,
+                                                  alphapi,death,
+                                                  sd_alphapi,sd_death);      
+        }
+	
+	
+	saver->createClass("");
+	if(WithProb){
+	  saver->saveField("mutprob",alphapi);
+	  saver->saveField("sd.mutprob",sd_alphapi);
+	} else {
+	  saver->saveField("mutations",alphapi);
+	  saver->saveField("sd.mutations",sd_alphapi);
+	}	
+	saver->finalize();	  
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+
+RcppExport SEXP MutationGFEstimation(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        
+        // argument index
+        int iarg=0;
+           
+        
+        // data set
+        SP::MRE_DataSet dataSet=MRE_DataSet::New();
+      
+       
+       
+        //mutation counts mc
+        tBoolean isCopied=false;
+        int n=0;
+        tLong *mc=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,mc,isCopied)) {
+            dataSet->setMutantCellsNumber(n,mc);
+            //cout << dataSet->getMutantCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "mc reading failed.\n";
+        }
+        
+        
+        //  final numbers
+        isCopied=false;
+        tReal *fn=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,fn,isCopied)) {
+            dataSet->setCellsNumber(n,fn);
+            //cout << dataSet->getCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "fn reading failed.\n";
+        }
+
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0) gld=MRE_GLDExponentialDistribution::New();
+            else gld=MRE_GLDDiracDistribution::New();
+        }
+        //cout << "model:"<<model<<"\n";
+        
+        // read rho
+        tReal rho;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(rho);
+        
+        // probability of death
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        //cout << "death:"<<death<<"\n";
+        
+        //is death optimized
+        //tBoolean isDeathOptimized=false;
+        // uiClass->setData(prhs[iarg]);
+        // iarg++;
+        // uiClass->getScalar(isDeathOptimized);
+
+        // confidence level; (not needed to be read)
+//         tReal level;
+//         uiClass->setData(prhs[iarg]);
+//         iarg++;
+//         uiClass->getScalar(level);
+
+        // if WithProb is true : compute alpha and pi estimate
+        // else compute only alpha estimate
+        tBoolean WithProbFn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbFn);
+	
+	
+	tBoolean WithProbStat;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(WithProbStat);
+	
+	if(WithProbStat) {
+	 // mean final number used when fc is empty
+	  tReal mfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(mfn)) {
+	      dataSet->setMeanFinalNumber(mfn);
+	  }
+// 	  cout << "mfn:"<<dataSet->getMeanFinalNumber()<<"\n";
+	  
+	  // coeficient of variation of final members used when fc is empty
+	  tReal cvfn;
+	  uiClass->setData(prhs[iarg]);
+	  iarg++;
+	  if (uiClass->getScalar(cvfn)) {
+	      dataSet->setVariationCoefficientFinalNumber(cvfn);
+	  }
+//         cout << "cvfn:"<<dataSet->getVariationCoefficientFinalNumber()<<"\n"; 
+	}
+	
+	tBoolean WithProb=WithProbFn || WithProbStat;
+        
+	tReal alphapi=0,sd_alphapi=0;
+       
+      
+        // method of estimation
+       
+        SP::MRE_LogNormalMutant mutant=MRE_LogNormalMutant::New();
+        	
+	if (WithProb) {
+	    mutant->mutationProbabilityGFEstimation(dataSet,gld,rho,death,alphapi,sd_alphapi);
+        } else {
+	    alphapi=mutant->mutationsNumberGFEstimation(dataSet->getMutantCellsNumber(),
+							*gld.get(),rho,death,
+							sd_alphapi);
+        }
+	
+	
+	saver->createClass("");
+	if(WithProb){
+	  saver->saveField("mutprob",alphapi);
+	  saver->saveField("sd.mutprob",sd_alphapi);
+	} else {
+	  saver->saveField("mutations",alphapi);
+	  saver->saveField("sd.mutations",sd_alphapi);
+	}	
+	saver->finalize();	  
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+
+    
+    
+    /* Estimates by maximizing the likelihhod the fitness given:
+     *   - A mean number of mutations alpha (estimated by P0-method)
+     *   - A death probability death
+     *   - A lifetimes distribution model : exponentialy distributed lifetime ("LD") or constant lifetime "H"
+     *   - sample of mutants counts
+     *   - sample of finals counts (or a mean and coeffcient of variation of finals counts)
+     * Returns : 
+     *   - Estimate of fitness
+     *   - Standard deviation of fitness
+     */
+
+RcppExport SEXP FitnessP0Optimization(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        
+        // argument index
+        int iarg=0;
+	
+	SP::MRE_DataSet dataSet=MRE_DataSet::New();
+       
+        //mutation counts mc
+        tBoolean isCopied=false;
+        int n=0;
+        tLong *mc=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,mc,isCopied)) {
+            dataSet->setMutantCellsNumber(n,mc);
+//             cout << dataSet->getMutantCellsNumber().toString()<<"\n";
+        } else {
+//             cout << "mc reading failed.\n";
+        }
+        
+        
+        //  final numbers
+        isCopied=false;
+        tReal *fn=null;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getVector(n,fn,isCopied)) {
+            dataSet->setCellsNumber(n,fn);
+            //cout << dataSet->getCellsNumber().toString()<<"\n";
+        } else {
+            //cout << "fn reading failed.\n";
+        }
+
+     
+
+        std::string optimizerName;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getString(optimizerName);
+        SP::MATH_OptimizationMethod optimizer=MATH_BFGS::New();
+        
+      
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0) gld=MRE_GLDExponentialDistribution::New();
+            else gld=MRE_GLDDiracDistribution::New();
+        }
+        //cout << "model:"<<model<<"\n";
+        
+        
+        // mean number of mutations
+        tReal alphapi;
+	uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(alphapi);
+	
+        // probability of death
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        //cout << "death:"<<death<<"\n";
+        
+	// max clones number
+        int maxClonesNumber;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(maxClonesNumber);
+
+        tReal rho=0,sd_rho=0,rho0=0;
+	tBoolean succeeds=true;
+       
+        // method of estimation
+       
+        SP::MRE_LogNormalMutant mutant=MRE_LogNormalMutant::New();
+        	
+
+	dataSet->winsorize(maxClonesNumber);
+	succeeds=mutant->fitnessOptimization(optimizer,dataSet,gld,alphapi,death,rho0,rho,sd_rho);
+            
+	
+	
+	saver->createClass("");
+	saver->saveField("fitness",rho);
+	saver->saveField("sd.fitness",sd_rho);
+	saver->saveField("succeeds",succeeds);
+	saver->finalize();	  
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+
+
+
+
+
+
+
+    // --------------------------------------------------------------------------------------------------------------
+    //////////////////////////// Density, distribution function, quantile function and random ///////////////////////
+    ////////////////////////////////// generation for the mutants counts ////////////////////////////////////////////
+    // --------------------------------------------------------------------------------------------------------------
+
+    
+    /* Compute a sample fn of final counts with a Log-Normal distribution with mean mfn and coefficient of variation cvfn
+     * Then, compute a sample mcs of mutants counts, where the ith count has the following parameters :
+     *   - alphai = pi*fni : mean number of mutation 
+     *                      (where fni is the corresponding of final count, and pi the probability of mutation)
+     *   - rho : fitness parameter
+     *   - death : probability of death
+     *   - dist : lifetimes distribution
+     * 
+     * Returns the two samples mcs and fn
+     */
+
+RcppExport SEXP rflan(SEXP params)  {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    
+    try {
+        // argument index
+        int iarg=0;
+           
+
+        // create a data set
+        //cout << "create a data set \n";
+//         SP::MRE_DataSet dataSet=MRE_DataSet::New();
+        
+        // sample size n>0
+        //cout << "read sample size \n";
+        int n=0;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(n);
+        
+        // mutation rate in [0,1]
+        //cout << "read pi \n";
+        tReal alphapi;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(alphapi);
+        
+        // fitness > 0
+        //cout << "read rho \n";
+        tReal rho;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(rho);
+        
+	
+	// death
+        //cout << "read death\n";
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+        
+        // distribution
+        //cout << "read distribution\n";
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+	SP::STAT_Distribution sdist;
+//         SP::STAT_Distribution sdist=STAT_LogNormalDistribution::New(-0.3795851,0.3016223);
+//         SP::SOFT_CLASS fieldClass=SOFT_CLASS::New();
+        tString name="";
+        //cout << "read distribution name\n";
+        if (uiClass->loadField("name",name)) {
+            //cout << "get name\n";
+            if ((name.compare("dirac")==0) ||
+                (name.compare("dir")==0)) {
+                tReal loc;
+                //cout << "read distribution location\n";
+                if (!uiClass->loadField("location",loc)) loc=1;
+                sdist=STAT_DiracDistribution::New(loc);
+            } else if ((name.compare("exponential")==0) ||
+                       (name.compare("exp")==0)) {
+                tReal rate;
+                //cout << "read distribution rate\n";
+                if (!uiClass->loadField("rate",rate)) rate=1;
+                sdist=STAT_ExponentialDistribution::New(rate);
+            } else if ((name.compare("gamma")==0)) {
+                tReal shape=1,scale=1;
+                //cout << "read distribution shape & scale\n";
+                if (!uiClass->loadField("shape",shape)) shape=1;
+                if (!uiClass->loadField("scale",scale)) scale=1;
+                sdist=STAT_GammaDistribution::New(shape,scale);
+		sdist->adjustGrowthRate(1,death);
+            } else  if ((name.compare("lnorm")==0)) {
+                tReal ml=1;
+                tReal sdl=1;
+                //cout << "read distribution meanlog & sdlog\n";
+                if (!uiClass->loadField("meanlog",ml)) ml=1;
+                if (!uiClass->loadField("sdlog",sdl)) sdl=1;
+                sdist=STAT_LogNormalDistribution::New(ml,sdl);
+		sdist->adjustGrowthRate(1,death);
+            } 
+            
+        }
+        
+        // mean final number used when fc is empty
+        //cout << "read mfn \n";
+        tReal mfn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(mfn);
+        
+        // coeficient of variation of final members used when fc is empty
+        //cout << "read cvfn \n";
+        tReal cvfn;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(cvfn);
+
+//         int min=10^5;
+	
+// 	tBoolean SampleWithPi;
+// 	uiClass->setData(prhs[iarg]);
+//         iarg++;
+//         uiClass->getScalar(SampleWithPi);
+// 	
+        //cout << "compute sample...\n";
+        SP::MRE_Mutant mutant=MRE_LogNormalMutant::New();
+        CORE_LongArray mcs(n);
+        CORE_RealArray fns(n);
+	
+//         mutant->computeSamplesMutantsFinalsNumber(n,SampleWithPi,mfn,cvfn,rho,death,*sdist.get(),alphapi,mcs,fns);
+	mutant->computeSamplesMutantsFinalsNumber(n,mfn,cvfn,alphapi,rho,death,*sdist.get(),mcs,fns);
+	
+// 	cout << "min(mc) ="<<min<<endl;
+        
+        //cout << "create return result...\n";
+        saver->createClass("");
+        saver->saveField("mc",n,&mcs(0));
+        saver->saveField("fn",n,&fns(0));
+        saver->finalize();
+        return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+}
+
+  /* Distribution function of the mutants count with parameter 
+   *   alpha : mean number of mutations
+   *   rho : fitness parameter
+   *   death : death probability
+   *   model : lifetimes distribution model : exponentialy distributed lifetimes ("LD") or constant lifetimes ("H")
+   */
+
+
+RcppExport SEXP pflan(SEXP params) {
+   // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        int iarg=0;
+           
+        // number of mutants
+        //cout << "read number of mutants \n";
+        int m=0;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(m);
+      
+        // expected number of mutations
+        //cout << "read alpha \n";
+        tReal alpha;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(alpha);
+      
+        // fitness > 0
+        //cout << "read rho \n";
+        tReal rho;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(rho);
+      
+        // death probability
+        //cout << "read death \n";
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+      
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+      
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0)
+                gld=MRE_GLDExponentialDistribution::New();
+            else
+                gld=MRE_GLDDiracDistribution::New();
+        }
+	// if lower.tail is true : compute P[X<=x]
+	// else compute P[X>x]
+	
+	tBoolean lowertail;
+	uiClass->setData(prhs[iarg]);
+	iarg++;
+	uiClass->getScalar(lowertail);
+	
+	// Vector or signle value ?
+	tBoolean Vect;
+	uiClass->setData(prhs[iarg]);
+	iarg++;
+	uiClass->getScalar(Vect);
+	
+
+        CORE_RealArray pk,cumsum_pk;
+        tReal sum_pk;
+	
+	if(Vect){
+	  gld->computeCumulativeProbability(m,alpha,rho,death,cumsum_pk);
+	  if(!lowertail){
+	    for(int i=0;i<=m;i++){
+	      cumsum_pk[i]=1-cumsum_pk[i];
+	    }
+	  }
+	  saver->createVector(m+1,&cumsum_pk[0]);
+	} else {
+	  gld->computeProbability(m,alpha,rho,death,sum_pk,pk);
+	  if(!lowertail) sum_pk=1-sum_pk;
+	  saver->createScalar(sum_pk);
+	}
+	
+	return saver->getData();
+        
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI::pmut  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI::pmut  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+
+}
+
+
+  /* Density function of the mutants count with parameter 
+   *   alpha : mean number of mutations
+   *   rho : fitness parameter
+   *   death : death probability
+   *   model : lifetimes distribution model : exponentialy distributed lifetimes ("LD") or constant lifetimes ("H")
+   */
+
+RcppExport SEXP dflan(SEXP params) {
+    // get the list of arguments
+    Rcpp::List prhs(params);
+    //int nrhs =prhs.size();
+    
+    // create class parser
+    SP::SOFT_CLASS uiClass=SOFT_CLASS::New();
+    
+    
+    // output setting
+    
+    std::ostringstream output;
+    CORE_Object::setOutput(output);
+    
+    // message to print
+    tString msg="";
+
+    // create the saver class
+    SP::SOFT_CLASS saver=SOFT_CLASS::New();
+    try {
+        int iarg=0;
+           
+        // number of mutants
+        //cout << "read number of mutants \n";
+        int m=0;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(m);
+      
+        // expected number of mutations
+        //cout << "read alpha \n";
+        tReal alpha;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(alpha);
+      
+        // fitness > 0
+        //cout << "read rho \n";
+        tReal rho;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(rho);
+      
+        // death probability
+        //cout << "read death \n";
+        tReal death;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+        uiClass->getScalar(death);
+      
+        // life time model
+        SP::MRE_GLDDistribution gld;
+        tString model;
+        uiClass->setData(prhs[iarg]);
+        iarg++;
+      
+        if (uiClass->getString(model)) {
+            if (model.compare("LD")==0)
+                gld=MRE_GLDExponentialDistribution::New();
+            else
+                gld=MRE_GLDDiracDistribution::New();
+        }
+        
+        // vector or single value ?
+        tBoolean Vect;
+	uiClass->setData(prhs[iarg]);
+	iarg++;
+	uiClass->getScalar(Vect);
+
+  
+	CORE_RealArray pk;
+      
+      	gld->computeProbability(m,alpha,rho,death,pk);
+	if(Vect){
+	  saver->createVector(m+1,&pk[0]);
+	} else {
+	  saver->createScalar(pk[m]);
+	}
+    
+	return saver->getData();
+
+//         } 
+//        else {
+//            return 0;
+//        }
+
+    } catch(std::exception &ex) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+" "+std::string(ex.what())+"\n");
+        forward_exception_to_r(ex); 
+    } catch(...) {
+        uiClass->printMessage("error in MRE_RUI  "+output.str()+"\n");
+        ::Rf_error("c++ exception (unknown reason)"); 
+    }
+    return R_NilValue;
+
+}

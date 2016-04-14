@@ -1,0 +1,5 @@
+.Archive
+*.o
+*.so
+*.RData
+.Rhistory

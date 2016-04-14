@@ -1,0 +1,228 @@
+/**
+  * FLAN Software
+  *
+  * @author 2015-2020 Adrien Mazoyer  <adrien.mazoyer@imag.fr> 
+  * @see The GNU Public License (GPL)
+  */
+/*
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ */
+
+#include "FLAN_GFEst.h"
+
+FLAN_GFEst::FLAN_GFEst() {
+  
+  
+//   SP::MATH_ZeroEquation solver=MATH_ZeroEquation::New();
+//   solver->setInterval(0.05,250);
+//   solver->setMaxError(1.e-6);
+//   solver->setFunction(getThis());
+//   mSolver=solver;
+//   
+}
+
+FLAN_GFEst(FLAN_MutationModel* mutmodel){
+  
+  mMutModel=mutmodel;
+  
+  mZ1=0.1;
+  mZ2=0.9;
+  mZ3=0.8;
+  mQ=0.1;
+  
+}
+
+
+FLAN_GFEst::~FLAN_GFEst() {
+//     mSolver.reset();
+}
+    
+    // --------------------------------------------------------------------------------------------------------------
+    /////////////////////////////////////// Generating Function estimation method ///////////////////////////////////
+    // --------------------------------------------------------------------------------------------------------------
+
+    /* Returns the GF-method estimate of the mean number of mutations alpha for a sample 
+     *  of mutants counts, given as vector mc, with given fitness rho and death probability death.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (mMutModel) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of alpha is returned together with its standard deviation sd_alpha.
+     * If cvfn is non zero, there is a correction for the estimate alpha and its standard deviations.
+     */
+
+void FLAN_GFEst::mutationsNumberGFEstimation(const std::vector<long int>& mutantCount,
+				const double& rho,const double& death,
+				double& alpha,double& sd_alpha) const {
+    int n=mutantCount.size();
+        //scale factor
+    double scale=STAT_Object::quantile(mutantCount,mQ)+1;
+//         std::cout<<"Scale parameter ="<<scale<<std::endl;
+
+        // rescale fixed variables
+    double z3=pow(mZ3,1./scale);
+	
+    alpha=alphaEstimation(mutantCount,rho,death,scale);
+    
+    double g3=mMutModel->computeGeneratingFunction(z3,alpha,rho,death);
+        
+    sd_alpha=mMutModel->covariance(z3,z3,alpha,rho,death)/pow(g3*log(g3)/alpha,2);
+        
+    // standard deviation are the sqrt(diag(cov);
+    sd_alpha=sqrt(sd_alpha/n);
+
+}
+
+
+    /* Returns the GF-method estimate of the probability of mutations pi for a sample 
+     *  of mutants counts, given as vector mc, with given fitness rho and death probability death.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (mMutModel) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of pi is returned together with its standard deviation sd_pi.
+     * If cvfn is non zero, there is a correction for the estimate alpha and its standard deviations.
+     */
+
+void FLAN_GFEst::mutationProbabilityGFEstimation(const std::vector<long int>& mutantCount,
+					 const double& mfn,
+					 const double& cvfn,
+					 const double& rho,const double& death,
+					 double& pi,double& sd_pi) const {
+
+    double alpha=0,sd_alpha=0;
+
+    mutationsNumberGFEstimation(mutantCount,rho,death,alpha,sd_alpha);
+    pi=alpha/mfn;
+    sd_pi=sd_alpha/mfn;
+
+    if(cvfn!=0) mMutModel->unbiasedPiEstimation(mZ3,cvfn,alpha,rho,death,pi,sd_pi);
+
+}
+
+
+    /* Returns the GF-method estimate of the mean number of mutations alpha and the fitness parameter rho for a sample 
+     *  of mutants counts, given as vector mc, with a given death probability death.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (mMutModel) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of alpha and rho are returned together with their standard deviation sd_alpha and sd_rho
+     * If cvfn is non zero, there is a correction for the both estimates and their standard deviations.
+     */
+    
+bool FLAN_GFEst::mutationsNumberFitnessGFEstimation(const std::vector<long int>& mutantCount,
+						  const double& death,
+                                                  double& alpha, double& rho,
+                                                  double& sd_alpha,double& sd_rho) const {
+        // estimates alpha, rho & sd
+	bool succeeds=true;
+        
+        // size of the sample
+        int n=sample.getSize();
+        
+        //scale factor
+        double scale=STAT_Object::quantile(sample,mQ)+1;
+// 	std::cout<<"Scale parameter ="<<scale<<std::endl;
+        
+        // rescale fixed variables
+        double z1=pow(mZ1,1./scale);
+        double z2=pow(mZ2,1./scale);
+        double z3=pow(mZ3,1./scale);
+        
+        // rho estimation
+// 	std::cout<<"Initialisation avec cvfn=0"<<std::endl;
+	succeeds=rhoEstimation(mutantCount,death,scale,rho);
+        if (!succeeds) {
+// 	    std::cout<<"Impossible de converger n°1..."<<std::endl;
+	  rho=1;
+        }
+	
+        // alpha estimation
+        alpha=alphaEstimation(mutantCount,rho,death,scale);
+	
+      
+        // lower probability
+        // asymptotic covariance matrix
+// 	  std::cout<<"Matrice de cov"<<std::endl;
+	double cov[2][2];
+
+	mMutModel->covariance(z1,z2,z3,alpha,rho,death,cov);
+	sd_alpha=sqrt(cov[0][0])/sqrt(n);
+	sd_rho=sqrt(cov[1][1])/sqrt(n);
+
+	return succeeds;
+}
+
+
+    /* Returns the GF-method estimate of the probability of mutations pi and the fitness parameter rho for a sample 
+     *  of mutants counts, given as vector mc, with a given death probability death.
+     * The mean and coefficient of variation for the final number of cells are mfn and cfn.
+     * The lifetimes model (mMutModel) is assumed to be exponential (Luria-Delbrück model) or constant (Haldane model)
+     * The estimate of pi and rho are returned together with their standard deviation sd_pi and sd_rho
+     * If cvfn is non zero, there is a correction for the both estimates and their standard deviations.
+     */
+
+bool FLAN_GFEst::mutationProbabilityFitnessGFEstimation(const std::vector<long int>& mutantCount,
+                                                        const double& mfn,
+                                                        const double& cvfn,
+                                                        const double& death,
+                                                        double& pi,double& rho,
+                                                        double& sd_pi,double& sd_rho) const {
+							  
+	double alpha=0,sd_alpha=0;
+        bool succeeds=parametersAlphaRhoGFEstimation(mutantCount,death,alpha,rho,sd_alpha,sd_rho);
+	
+        pi=alpha/mfn;
+        sd_pi=sd_alpha/mfn;
+	if (cvfn!=0) mMutModel->unbiasedPiEstimation(mZ3,cvfn,alpha,rho,death,pi,sd_pi);
+
+        return succeeds;
+}
+
+
+
+
+bool solveCumulativeFunctionEquation(const double& z1,const double& z2,
+				     const double& death,const double& y,
+				     double& rho){
+
+    mZ1=z1;
+    mZ2=z2;
+    mY=y;
+    mDeath=death;
+    // Monotoneous function : if value at min constraint have same sign as max constraint, then no solution
+    tReal minX,maxX;
+    mSolver->getInterval(minX,maxX);
+//     std::cout<<"minX ="<<minX<<" | maxX ="<<maxX<<std::endl;
+    tReal fmin,fmax;
+    fmin=computeFunction(minX);
+    fmax=computeFunction(maxX);
+//     std::cout<<"z1 ="<<mZ1<<"z2 ="<<mZ2<<"y ="<<mY<<"death ="<<mDeath<<std::endl;
+//     std::cout<<"f(minX) ="<<fmin<<" | f(maxX) ="<<fmax<<std::endl;
+    if(fmin*fmax > 0) return false;
+    
+    v=mSolver->solve();
+    return mSolver->hasSucceeded(); 
+}
+
+
+double FLAN_Clone::computeFunction(const double& x) {
+    Rcpp::Xptr<FLAN_Clone> clone=mMutModel->getClone();
+    
+    return ((1-clone->computeGeneratingFunction(mZ1,x,mDeath))/(1-clone->computeGeneratingFunction(mZ2,x,mDeath)))-mY;
+}
+
+
+
+
+
+
+
+
