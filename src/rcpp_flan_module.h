@@ -3,6 +3,7 @@
 
 #include "FLAN_Sim.h"
 #include "FLAN_MutationModel.h"
+#include "MATH_Function.h"
 // #include "rcpp_mle_vam.h"
 // #include "rcpp_vam_model.h"
 //

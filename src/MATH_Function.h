@@ -1,68 +1,57 @@
 #ifndef MATH_FUNCTION_H
 #define MATH_FUNCTION_H
 
-#include "FLAN_Function.h"
-
+// #include "FLAN_Function.h"
+#include <Rcpp.h>
+using namespace Rcpp;
 
 class MATH_Integration {
 
 private:
-  
-  int mFunctionCalledNumber;
-  int mIntervalsNumber;
-  
-  FLAN_Function *mFunction;
-  
-  
+
+  double reltol;
+
+  Function* integrate;
+
+  Function* integrand;
+
+  List fcts;
+
+
 protected:
-  
-    inline void setIntervalsNumber(const int& n) {
-      mIntervalsNumber=n;
-    };
-    
-    
-    inline void setFunctionCalledNumber(const int& n) {
-        mFunctionCalledNumber=n;
-    };
-    
-    inline double computeFunction(const double& x) {
-        return getFunction()->computeFunction(x);
-    };
-  
-    
-  
+
+    // inline void setIntervalsNumber(const int& n) {
+    //   mIntervalsNumber=n;
+    // };
+    //
+    //
+    // inline void setFunctionCalledNumber(const int& n) {
+    //     mFunctionCalledNumber=n;
+    // };
+    //
+    // inline double computeFunction(const double& x) {
+    //     return getFunction()->computeFunction(x);
+    // };
+
+
+
 public:
-  
-    MATH_Integration();
-    
+
+    MATH_Integration() {};
+    MATH_Integration(List fns,double reltol_);
+
     ~MATH_Integration(){};
-  
-    inline void setFunction(FLAN_Function *f) {
-        mFunction=f;
-    }; 
-    
-    inline FLAN_Function* getFunction() const {
-        return mFunction;
-    };
-    
-    inline int getFunctionCalledNumber() const {
-        return  mFunctionCalledNumber;
-    };
-    /*! \brief get intervals number
-     */
-    inline int getIntervalsNumber() const {
-        return  mIntervalsNumber;
-    };
-    
-    
-  
+
+
+    void setFunctionName(std::string name);
+
   /*
    * Integrals functions
    */
-  
-  static void integralFunction(double x, double xminusa, double bminusx, double &y, void *ptr);
 
-  bool integrate(const double& a,const double& b,double& v);
+  double integralFunction(double a, double b);
+
+
 };
 
 #endif

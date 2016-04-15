@@ -17,6 +17,11 @@ RCPP_MODULE(flan_module) {
 // 	.method("unbias_mutprob_estimation",&FLAN_MutationModel::unbiasPiEstimation,"unbias mutprob estimation")
   ;
 
+  class_<MATH_Integration>("MathInt")
+  .constructor<List,double>()
+  .method("integrate.test",&MATH_Integration::integralFunction,"integrate")
+  ;
+
   //function( "newMaintenancePolicy", &newMaintenancePolicy );
 
 }

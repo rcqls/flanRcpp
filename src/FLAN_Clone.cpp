@@ -27,11 +27,11 @@
 FLAN_SimClone::FLAN_SimClone(){}
 
 FLAN_SimClone::FLAN_SimClone(double rho,double death, FLAN_Dist *dist){
- 
+
   mFitness=rho;
   mDeath=death;
   mDist=dist;
-  
+
 }
 
 FLAN_SimClone::~FLAN_SimClone(){}
@@ -39,7 +39,7 @@ FLAN_SimClone::~FLAN_SimClone(){}
 const double FLAN_SimClone::DEATH_EPS_SIM=1.e-4;
 
 std::vector<double> FLAN_SimClone::computeSample(int n) {
-  
+
   std::vector<double> sample(n);
 
   std::string name=mDist->getDistName();
@@ -159,7 +159,7 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
     }
 
   }
-  
+
   return sample;
 }
 
@@ -303,7 +303,7 @@ int FLAN_SimClone::splitTimes(double t,std::vector<double>& splitTimesList) {
 
 
 const double FLAN_Clone::DEATH_EPS_DIST=1.e-4;
-  
+
 FLAN_Clone::FLAN_Clone() {}
 
 
@@ -332,93 +332,94 @@ FLAN_Clone::~FLAN_Clone() {}
 
 
 std::vector<double> FLAN_ExponentialClone::computeProbability(int m){
-  
+
   std::vector<double> P(m+1);
-  
+
   if(mDeath<DEATH_EPS_DIST){
-    
+
     P[0]=0;
     if(m == 0) return P;
-    
+
     int k=1;
     for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.end() ; ++it,k++) *it=R::beta(mFitness+1,k);
-    
-  } else {
-    double d1=mDeath/(1-mDeath);
-    int m_max=1000;
-    // set the function type
-    mFunction->setFunctionName(FLAN_Function::CF_GY_WD);
-    mFunction->setParameter(d1,mFitness);
-    
-    //integrate the function in [0,1]
-    double i;
-    // m=0 probability
-    mIntegrator->integrate(0,1,i);
-    P[0]=i*d1*mFitness;
-    
-//     sum_pk+=p_k;
-    if (m==0) return P;
-    
-    //m=1 probability
-    double d2=(1.-2.*mDeath)/(1-mDeath);
-    d2*=d2;
-    mFunction->setFunctionName(FLAN_Function::CF_GY_WD_1);
-    mIntegrator->integrate(0.,1.,i);
-    P[1]=i*d2*mFitness;
-//     sum_pk+=p_k;
-    if (m==1) return P;
-    
-    //m>1 probability
-    int m1=m;
-    if (m1>=m_max) m1=m_max;
-    int k=2;
-//     for (int k=2;k<=m1;k++) {
-    for(std::vector<double>::iterator it=P.begin()+2 ; it!= P.end() ; ++it, k++){
-        mFunction->setParameter(k);
-        mFunction->setFunctionName(FLAN_Function::CF_GY_WD_K);
-        mIntegrator->integrate(0.,1.,i);
-        *it=i*d2*mFitness;
-//         sum_pk+=p_k;
-    }
 
-    // equivalent computation
-    double a=pow(d2,(1.-mFitness)/2.)*mFitness*R::gammafn(mFitness+1);
-    k=m1+1;
-    for(std::vector<double>::iterator it=P.begin()+m1+1 ; it!= P.end() ; ++it, k++){
-    //     for (int k=m1+1;k<=m;k++) {
-        *it=a*pow(k,-mFitness-1);
-//         sum_pk+=p_k;
-    }
-    
   }
- 
+//    else {
+//     double d1=mDeath/(1-mDeath);
+//     int m_max=1000;
+//     // set the function type
+//     mFunction->setFunctionName(FLAN_Function::CF_GY_WD);
+//     mFunction->setParameter(d1,mFitness);
+//
+//     //integrate the function in [0,1]
+//     double i;
+//     // m=0 probability
+//     mIntegrator->integrate(0,1,i);
+//     P[0]=i*d1*mFitness;
+//
+// //     sum_pk+=p_k;
+//     if (m==0) return P;
+//
+//     //m=1 probability
+//     double d2=(1.-2.*mDeath)/(1-mDeath);
+//     d2*=d2;
+//     mFunction->setFunctionName(FLAN_Function::CF_GY_WD_1);
+//     mIntegrator->integrate(0.,1.,i);
+//     P[1]=i*d2*mFitness;
+// //     sum_pk+=p_k;
+//     if (m==1) return P;
+//
+//     //m>1 probability
+//     int m1=m;
+//     if (m1>=m_max) m1=m_max;
+//     int k=2;
+// //     for (int k=2;k<=m1;k++) {
+//     for(std::vector<double>::iterator it=P.begin()+2 ; it!= P.end() ; ++it, k++){
+//         mFunction->setParameter(k);
+//         mFunction->setFunctionName(FLAN_Function::CF_GY_WD_K);
+//         mIntegrator->integrate(0.,1.,i);
+//         *it=i*d2*mFitness;
+// //         sum_pk+=p_k;
+//     }
+//
+//     // equivalent computation
+//     double a=pow(d2,(1.-mFitness)/2.)*mFitness*R::gammafn(mFitness+1);
+//     k=m1+1;
+//     for(std::vector<double>::iterator it=P.begin()+m1+1 ; it!= P.end() ; ++it, k++){
+//     //     for (int k=m1+1;k<=m;k++) {
+//         *it=a*pow(k,-mFitness-1);
+// //         sum_pk+=p_k;
+//     }
+//
+//  }
+
   return P;
-  
+
 }
 
 
 std::vector<double> FLAN_ExponentialClone::computeProbability1DerivativeRho(int m,const std::vector<double> P){
-  
+
   std::vector<double>dP_dr(m+1);
-  
+
   if(mDeath<DEATH_EPS_DIST){
-    
+
     dP_dr[0]=0;
     if(m == 0) return dP_dr;
-    
+
     int k=1;
     double dg=R::digamma(mFitness+1);
     for(std::vector<double>::iterator it=dP_dr.begin()+1 ; it!= dP_dr.end(); ++it,k++)
       *it=P[k]*(1/mFitness+dg-R::digamma(mFitness+k+1));
-    
+
   } else {
     double dstar=mDeath/(1-mDeath);
-    
+
     //                  [.....]
   }
-  
+
   return dP_dr;
-  
+
 }
 
 
@@ -429,76 +430,76 @@ std::vector<double> FLAN_ExponentialClone::computeProbability1DerivativeRho(int 
   */
 
 std::vector<double> FLAN_DiracClone::computeProbability(int m){
-  
+
   std::vector<double> P(m+1);
-  
+
   if(mDeath<DEATH_EPS_DIST){
-    
+
     P[0]=0;
-    
+
     if(m == 0) return P;
-    
+
     for(std::vector<double>::iterator it=P.begin()+1;it!=P.end(); ++it) *it=0;
     int n=(int) (log(m)/log(2));
-        //take only the indices index=2^ind for ind in [0,n] where index < m 
+        //take only the indices index=2^ind for ind in [0,n] where index < m
     for (int k=0;k<=n;k++) P[pow(2,k)]=(1-pow(2,-mFitness))*pow(2,-k*mFitness);
-	
+
   } else {
     double dstar=mDeath/(1-mDeath);
-    
+
     //                  [.....]
   }
- 
+
   return P;
-  
+
 }
 
 
 std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,const std::vector<double> P){
-  
+
   std::vector<double>dP_dr(m+1);
-  
+
   if(mDeath<DEATH_EPS_DIST){
 
     dP_dr[0]=0;
     if(m == 0) return dP_dr;
-	    
-    for(std::vector<double>::iterator it=dP_dr.begin()+1;it!=dP_dr.end(); ++it) *it=0;    
+
+    for(std::vector<double>::iterator it=dP_dr.begin()+1;it!=dP_dr.end(); ++it) *it=0;
     int n=(int) (log(m)/log(2));
     double index;
-    
+
     for(int k=0;k<=n;k++) {
       index=pow(2,k);
       dP_dr[index]=log(2)*(pow(2,-mFitness*(k+1))-k*P[index]);
     }
-    
+
   } else {
     double dstar=mDeath/(1-mDeath);
-    
+
     //                  [.....]
   }
   return dP_dr;
-  
+
 }
 
 
 // double FLAN_DiracClone::computeGeneratingFunction(double z){
-//   
+//
 //     double eps=1.e-8;
-//     
+//
 //     // z=0 return 0
 //     if (fabs(z)<eps) return 0;
-// 
+//
 //     // z=1 return 1
 //     if (fabs(1-z)<eps) return 1;
-// 
+//
 //     // otherwize
 //     double s=0;
 //     if (mDeath<eps) {
 // //         double a=pow((int)2,-mFitness);
 // 	double a=pow(2,-mFitness);
 //         int n=(int) (4-log(fabs(log(z)))/log(2));
-//         
+//
 //         for (int k=0;k<=n;k++) {
 //             s+=pow(z,pow(2,k))*pow(a,k);
 //         }
@@ -519,21 +520,21 @@ std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,cons
 //         s*=(1-tp);
 //         s+=dstar*tpi*tp;
 //     }
-//     
+//
 //     return s;
-//   
+//
 // }
-// 
-// 
+//
+//
 // double FLAN_DiracClone::computeGeneratingFunction1DerivativeRho(double z) {
-//   
+//
 //     double eps=1.e-8;
 //     // z=0 return 0
 //     if (fabs(z)<eps) return 0;
 //     // z=1 return 1
 //     if (fabs(1-z)<eps) return 0;
 //     // otherwise
-// 
+//
 //     if (mDeath<eps) {
 //         double a=pow((int)2,-mFitness);
 //         int n=(int) (4-log(fabs(log(z)))/log(2));
@@ -542,7 +543,7 @@ std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,cons
 //             t=pow(z,pow(2,k))*pow(a,k);
 //             s1+=t;
 //             s2+=k*t;
-//             
+//
 //         }
 //         return log(2)*(a*s1-(1-a)*s2);
 //     } else {
@@ -567,6 +568,6 @@ std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,cons
 //         return s;
 //     }
 // }
-//   
-// 
-// 
+//
+//
+//

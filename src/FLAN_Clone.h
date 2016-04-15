@@ -25,7 +25,7 @@
 
 #include <Rcpp.h>
 
-#include "MATH_Function.h"
+//#include "MATH_Function.h"
 
 using namespace Rcpp ;
 
@@ -102,24 +102,24 @@ public:
   */
 
 class FLAN_SimClone {
-  
+
 private:
-    
+
     double mFitness;
     double mDeath;
     FLAN_Dist *mDist;   // Lifetime distribution
-    
-protected: 
+
+protected:
   static const double DEATH_EPS_SIM;     // Threshold for death
-  
+
 public:
     FLAN_SimClone();
-    
+
     ~FLAN_SimClone();
-  
+
       // create object to generate samples
     FLAN_SimClone(double rho,double death, FLAN_Dist *dist);
-  
+
     // -----------------------
     // Sample computation
     // ------------------------
@@ -127,8 +127,8 @@ public:
     std::vector<double> computeSample(int n);
 
 
-    int splitTimes(double t,std::vector<double>& splitTimes); 
-  
+    int splitTimes(double t,std::vector<double>& splitTimes);
+
 };
 
 
@@ -145,8 +145,8 @@ protected:
     static const double DEATH_EPS_DIST;     // Threshold for death
     double mFitness;    // Realtive fitness
     double mDeath;      // Death probability
-    
-    
+
+
     FLAN_Clone();
 
     // create object for GF method
@@ -154,8 +154,8 @@ protected:
 
     // create object to compute distribution
     FLAN_Clone(double rho,double death);
-    
-    
+
+
     virtual ~FLAN_Clone();
 
 
@@ -166,15 +166,15 @@ protected:
     inline void setDeath(double death){
       mDeath=death;
     }
-    
-    
+
+
     // Get attributes
-    
+
     inline double getFitness(){
       return mFitness;
     }
     inline double getDeath(){
-      return mDeath;    
+      return mDeath;
     }
 
 public:
@@ -223,21 +223,21 @@ class FLAN_ExponentialClone : public FLAN_Clone {
 
   protected:
 
-    
+
 
   private:
 
     //   SP::MATH_Integration mIntegrator;
     //   SP::MRE_Function mFunction;
 
-    FLAN_Function* mFunction;
-    MATH_Integration* mIntegrator;
+    // FLAN_Function* mFunction;
+    // MATH_Integration* mIntegrator;
 
   public:
-    
+
     FLAN_ExponentialClone():FLAN_Clone() {
-      mIntegrator = new MATH_Integration();
-      mFunction = new FLAN_Function();
+      // mIntegrator = new MATH_Integration();
+      // mFunction = new FLAN_Function();
     };
     FLAN_ExponentialClone(double death):FLAN_Clone(death) {
       FLAN_ExponentialClone();
@@ -276,9 +276,9 @@ class FLAN_DiracClone : public FLAN_Clone {
 
   private:
 
-    
+
   public:
-    
+
     FLAN_DiracClone():FLAN_Clone() {};
     FLAN_DiracClone(double death):FLAN_Clone(death) {};
     FLAN_DiracClone(double rho,double death):FLAN_Clone(rho,death) {};
