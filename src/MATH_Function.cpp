@@ -9,7 +9,7 @@ MATH_Integration::MATH_Integration(List fns,double reltol_) {
       reltol=reltol_;
       integrate=new Function("integrate");
       fcts=fns;
-      integrand=new Function("identity");
+      integrand=new Function("identity");  // allouer
 }
 
 
@@ -18,9 +18,9 @@ void MATH_Integration::setFunctionName(std::string name) {
 }
 
 
-double MATH_Integration::integralFunction(double a, double b) {
-  setFunctionName("test");
-  List res=(*integrate)(*integrand, a, b,_["rel.tol"] = reltol);
+double MATH_Integration::integralFunction(double a, double b,double rho,double delta) {
+  setFunctionName("CF_GY_WD");
+  List res=(*integrate)(*integrand, a, b, _["rel.tol"] = reltol,_["rho"] =rho,_["delta"] =delta);
   double integ=as<double>(res["value"]);
   return integ;
 }

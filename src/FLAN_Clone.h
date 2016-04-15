@@ -25,7 +25,7 @@
 
 #include <Rcpp.h>
 
-//#include "MATH_Function.h"
+#include "MATH_Function.h"
 
 using namespace Rcpp ;
 
@@ -231,12 +231,14 @@ class FLAN_ExponentialClone : public FLAN_Clone {
     //   SP::MRE_Function mFunction;
 
     // FLAN_Function* mFunction;
-    // MATH_Integration* mIntegrator;
+    MATH_Integration* mIntegrator;
 
   public:
 
     FLAN_ExponentialClone():FLAN_Clone() {
-      // mIntegrator = new MATH_Integration();
+      double flantol=Environment::global_env()[".flantol"];
+      List integrands=Environment::global_env()[".integrands"];
+      mIntegrator=new MATH_Integration(integrands,flantol);
       // mFunction = new FLAN_Function();
     };
     FLAN_ExponentialClone(double death):FLAN_Clone(death) {
@@ -246,7 +248,6 @@ class FLAN_ExponentialClone : public FLAN_Clone {
       FLAN_ExponentialClone();
     };
     ~FLAN_ExponentialClone(){};
-
 
     /* Compute the probability P[X=k]
      * Stor it in vector mProb

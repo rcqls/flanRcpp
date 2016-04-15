@@ -304,7 +304,8 @@ int FLAN_SimClone::splitTimes(double t,std::vector<double>& splitTimesList) {
 
 const double FLAN_Clone::DEATH_EPS_DIST=1.e-4;
 
-FLAN_Clone::FLAN_Clone() {}
+FLAN_Clone::FLAN_Clone() {
+}
 
 
 FLAN_Clone::FLAN_Clone(double death) {
@@ -315,6 +316,8 @@ FLAN_Clone::FLAN_Clone(double death) {
 FLAN_Clone::FLAN_Clone(double rho, double death) {
   mFitness=rho;
   mDeath=death;
+
+
 }
 
 

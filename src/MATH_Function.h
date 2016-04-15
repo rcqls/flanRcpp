@@ -49,7 +49,7 @@ public:
    * Integrals functions
    */
 
-  double integralFunction(double a, double b);
+  double integralFunction(double a, double b,double rho, double delta);
 
 
 };
