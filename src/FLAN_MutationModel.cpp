@@ -85,6 +85,11 @@ FLAN_MutationModel::FLAN_MutationModel(Rcpp::List args){
 
 
 
+
+
+
+
+
   // Destructor
 FLAN_MutationModel::~FLAN_MutationModel() {}
 

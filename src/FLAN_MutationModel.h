@@ -77,6 +77,9 @@ public:
       mClone=clone;
     };
     
+    List getFns(){
+      return mClone->get();
+}
     
     // Get attributes
     

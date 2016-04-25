@@ -9,11 +9,11 @@ class MATH_Integration {
 
 private:
 
-  double reltol;
+  double mReltol;
 
-  Function* integrate;
+  Function* mIntegrate;
 
-  Function* integrand;
+  Function* mIntegrand;
 
   List fcts;
 
@@ -38,10 +38,11 @@ protected:
 public:
 
     MATH_Integration() {};
-    MATH_Integration(List fns,double reltol_);
+    MATH_Integration(double reltol_);
 
     ~MATH_Integration(){};
 
+List getFns(){return fcts;};
 
     void setFunctionName(std::string name);
 
@@ -49,8 +50,8 @@ public:
    * Integrals functions
    */
 
-  double integralFunction(double a, double b,double rho, double delta);
-
+  double testintegralFunction(double a, double b,double rho, double delta);
+  double integralFunction(double a, double b,double rho, double delta,int k);
 
 };
 

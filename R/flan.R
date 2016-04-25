@@ -982,7 +982,10 @@ pflan <- function(m,mutations=1,fitness=1,death=0,model=c("LD","H"),lower.tail=T
     lt=lower.tail
   ))
   
-  output <- flan.mutmodel$pflan(max(m))
+#   print(flan.mutmodel$getfcts())
+  
+  M=max(m)
+  output <- flan.mutmodel$pflan(M)
 
   output[m+1]
 }

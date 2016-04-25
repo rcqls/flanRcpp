@@ -346,55 +346,48 @@ std::vector<double> FLAN_ExponentialClone::computeProbability(int m){
     int k=1;
     for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.end() ; ++it,k++) *it=R::beta(mFitness+1,k);
 
-  }
-//    else {
-//     double d1=mDeath/(1-mDeath);
-//     int m_max=1000;
-//     // set the function type
-//     mFunction->setFunctionName(FLAN_Function::CF_GY_WD);
-//     mFunction->setParameter(d1,mFitness);
-//
-//     //integrate the function in [0,1]
-//     double i;
-//     // m=0 probability
-//     mIntegrator->integrate(0,1,i);
-//     P[0]=i*d1*mFitness;
-//
-// //     sum_pk+=p_k;
-//     if (m==0) return P;
-//
-//     //m=1 probability
-//     double d2=(1.-2.*mDeath)/(1-mDeath);
-//     d2*=d2;
-//     mFunction->setFunctionName(FLAN_Function::CF_GY_WD_1);
-//     mIntegrator->integrate(0.,1.,i);
-//     P[1]=i*d2*mFitness;
-// //     sum_pk+=p_k;
-//     if (m==1) return P;
-//
-//     //m>1 probability
-//     int m1=m;
-//     if (m1>=m_max) m1=m_max;
-//     int k=2;
-// //     for (int k=2;k<=m1;k++) {
-//     for(std::vector<double>::iterator it=P.begin()+2 ; it!= P.end() ; ++it, k++){
-//         mFunction->setParameter(k);
-//         mFunction->setFunctionName(FLAN_Function::CF_GY_WD_K);
-//         mIntegrator->integrate(0.,1.,i);
-//         *it=i*d2*mFitness;
-// //         sum_pk+=p_k;
-//     }
-//
-//     // equivalent computation
-//     double a=pow(d2,(1.-mFitness)/2.)*mFitness*R::gammafn(mFitness+1);
-//     k=m1+1;
-//     for(std::vector<double>::iterator it=P.begin()+m1+1 ; it!= P.end() ; ++it, k++){
-//     //     for (int k=m1+1;k<=m;k++) {
-//         *it=a*pow(k,-mFitness-1);
-// //         sum_pk+=p_k;
-//     }
-//
-//  }
+    } else {
+    double d1=mDeath/(1-mDeath);
+    int m_max=1000;
+    std::cout<<"function type set"<<std::endl;
+    std::cout<<mIntegrator<<std::endl;
+//     mIntegrator->testintegralFunction(0,1,1,0.05);
+    std::cout<<"done1"<<std::endl;
+    mIntegrator->setFunctionName("CLONE_P0_WD");
+    std::cout<<"done"<<std::endl;
+    //integrate the function in [0,1]
+    double I;
+    // m=0 probability
+    I=mIntegrator->integralFunction(0.,1.,mFitness,d1,0.);
+    std::cout<<"integral computed"<<std::endl;
+    P[0]=I*d1*mFitness;
+
+//     sum_pk+=p_k;
+    if (m==0) return P;
+
+    double d2=(1.-2.*mDeath)/(1-mDeath);
+    d2*=d2;
+
+    //m>0 probability
+    int m1=m;
+    if (m1>=m_max) m1=m_max;
+    int k=1;
+//     for (int k=2;k<=m1;k++) {
+    for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.begin()+m1 ; ++it, k++){
+        mIntegrator->setFunctionName("CLONE_PK_WD");
+        mIntegrator->integralFunction(0.,1.,mFitness,d2,k);
+        *it=I*d2*mFitness*pow(k,-mFitness-1.);
+    }
+
+    // equivalent computation
+    double a=pow(d2,(1.-mFitness)/2.)*mFitness*R::gammafn(mFitness+1);
+    k=m1+1;
+    for(std::vector<double>::iterator it=P.begin()+m1+1 ; it!= P.end() ; ++it, k++){
+    //     for (int k=m1+1;k<=m;k++) {
+        *it=a*pow(k,-mFitness-1);
+//         sum_pk+=p_k;
+    }
+ }
 
   return P;
 

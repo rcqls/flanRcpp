@@ -14,12 +14,14 @@ RCPP_MODULE(flan_module) {
 	.constructor<List>()
 	.method("pflan",&FLAN_MutationModel::computeCumulativeFunction,"compute cumulative function")
 	.method("dflan",&FLAN_MutationModel::computeProbability,"compute probability")
+	.method("getfcts",&FLAN_MutationModel::getFns,"get function")
 // 	.method("unbias_mutprob_estimation",&FLAN_MutationModel::unbiasPiEstimation,"unbias mutprob estimation")
   ;
 
   class_<MATH_Integration>("MathInt")
-  .constructor<List,double>()
-  .method("integrate.test",&MATH_Integration::integralFunction,"integrate")
+  .constructor<double>()
+  .method("integrate.test",&MATH_Integration::testintegralFunction,"integrate")
+  .method("getfcts",&MATH_Integration::getFns,"get function")
   ;
 
   //function( "newMaintenancePolicy", &newMaintenancePolicy );

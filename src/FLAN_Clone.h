@@ -141,6 +141,7 @@ class FLAN_Clone {
 
 private:
 
+
 protected:
     static const double DEATH_EPS_DIST;     // Threshold for death
     double mFitness;    // Realtive fitness
@@ -177,11 +178,14 @@ protected:
       return mDeath;
     }
 
+
+
 public:
 
     /*! \brief compute the probability Pk[k]=k+1 , k in [0,pkMax[
      * @return true if the computing succeeds otherwise it returns false because of wrong parameter of the distribution
      */
+    virtual List get() = 0;
     virtual std::vector<double> computeProbability(int m) = 0;
 
     /*! \brief compute the first derivatives of pk with respect to the parameters
@@ -227,31 +231,38 @@ class FLAN_ExponentialClone : public FLAN_Clone {
 
   private:
 
-    //   SP::MATH_Integration mIntegrator;
-    //   SP::MRE_Function mFunction;
 
-    // FLAN_Function* mFunction;
     MATH_Integration* mIntegrator;
+
+    void init() {
+      double flantol=Environment::global_env()[".flantol"];
+
+//       std::cout<<"Size ="<<integrands.size()<<std::endl;
+      mIntegrator=new MATH_Integration(flantol);
+    }
 
   public:
 
+
+
     FLAN_ExponentialClone():FLAN_Clone() {
-      double flantol=Environment::global_env()[".flantol"];
-      List integrands=Environment::global_env()[".integrands"];
-      mIntegrator=new MATH_Integration(integrands,flantol);
-      // mFunction = new FLAN_Function();
+      init();
     };
     FLAN_ExponentialClone(double death):FLAN_Clone(death) {
-      FLAN_ExponentialClone();
+      init();
     };
     FLAN_ExponentialClone(double rho,double death):FLAN_Clone(rho,death) {
-      FLAN_ExponentialClone();
+      init();
     };
     ~FLAN_ExponentialClone(){};
 
     /* Compute the probability P[X=k]
      * Stor it in vector mProb
      */
+    List get(){
+	     return mIntegrator->getFns();
+    };
+
     std::vector<double> computeProbability(int m);
 
 //     virtual void computeProbability1Derivatives(int m, double rho, double death) const=0;
@@ -285,6 +296,8 @@ class FLAN_DiracClone : public FLAN_Clone {
     FLAN_DiracClone(double rho,double death):FLAN_Clone(rho,death) {};
     ~FLAN_DiracClone(){};
 
+
+    List get(){};
 
     std::vector<double> computeProbability(int m);
 

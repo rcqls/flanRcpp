@@ -3,7 +3,10 @@
 	local({
 		.flantol=.Machine$double.eps^0.5
 		.integrands<-list(
-				CF_GY_WD=function(x,rho,delta){(1-x)*x^(rho-1)/(1-delta/(1-delta)*x)}
+				CLONE_P0_WD=function(x,rho,delta) {(1-x)*x^(rho-1)/(1-delta*x)},
+				CLONE_PK_WD=function(x,rho,delta,k) {(1-x)^(k-1)*x^rho/(1-delta*x/k)^(k+1)},
+				CLONE_dP0_dr_WD=function(x,rho,delta) {(1-x)*x^(rho-1)/(1-delta*x)*log(x)},
+				CLONE_dPK_dr_WD=function(x,rho,delta,k) {(1-x)^(k-1)*x^rho/(1-delta*x/k)^(k+1)*log(x/k)}
 				)
 				},globalenv())
 }
