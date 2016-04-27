@@ -24,28 +24,6 @@
 
 using namespace Rcpp;
 
-FLAN_Sim::FLAN_Sim() {}
-
-FLAN_Sim::FLAN_Sim(List args){
-      mMut=as<double>(args["mutations"]);
-      mFitness=as<double>(args["fitness"]);
-      mDeath=as<double>(args["death"]);
-      
-      List dist=args["dist"];
-      FLAN_Dist* mDist=new FLAN_Dist(dist);          // Lifetime Distribution
-      mDist->adjustGrowthRate(mDeath);   // Rescales parameter to unit growth rate
-      
-      mMfn=as<double>(args["mfn"]);
-      mCvfn=as<double>(args["cvfn"]);
-
-      mClone=new FLAN_SimClone(mFitness,mDeath,mDist);
-
-}
-
-
-FLAN_Sim::~FLAN_Sim() {}
-
-
     // --------------------------------------------------------------------------------------------------------------
     //////////////////////////////////////////// Samples computation ////////////////////////////////////////////////
     // --------------------------------------------------------------------------------------------------------------
@@ -63,43 +41,45 @@ FLAN_Sim::~FLAN_Sim() {}
      */
 
 
-Rcpp::List FLAN_Sim::computeSamplesMutantsFinalsNumber(int n)  {
+List FLAN_Sim::computeSamplesMutantsFinalsNumber(int n)  {
 
+   
   RNGScope rngScope;
   
-  
-  std::vector<long int> mutantCount(n);
-  std::vector<double> finalCount(n);
+  NumericVector mutantCount(n);
 
   if (mCvfn>0) {
       double sdLog2=log(1+mCvfn*mCvfn);
       double sdLog=sqrt(sdLog2);
       double meanLog=log(mMfn)-sdLog2/2;
+      
 
-
-      for(std::vector<double>::iterator it = finalCount.begin();
-	  it != finalCount.end(); ++it) {
-
-
-	    *it=R::rlnorm(meanLog,sdLog);
-      }
+//       for(NumericVector::iterator it = finalCount.begin();
+// 	  it != finalCount.end(); ++it) {
+// 	    *it=R::rlnorm(meanLog,sdLog);
+//       }
+      
+      NumericVector finalCount=rlnorm(n,meanLog,sdLog);
 
       mutantCount=computeSampleMutantsNumber(n,finalCount);
+      return List::create(_["mc"]=mutantCount,_["fn"]=finalCount);
 
   } else {
-      for(std::vector<double>::iterator it = finalCount.begin();
-	  it != finalCount.end(); ++it) {
-
-	    *it=mMfn;
-      }
+//     {
+//       for(NumericVector::iterator it = finalCount.begin();
+// 	  it != finalCount.end(); ++it) {
+// 
+// 	    *it=mMfn;
+//       }
       mutantCount=computeSampleMutantsNumber(n);
+      return List::create(_["mc"]=mutantCount,_["fn"]=R_NilValue);
   }
-
   //export in R
-  return Rcpp::List::create(
-    _["mc"]=NumericVector(mutantCount.begin(),mutantCount.end()),
-    _["fn"]=NumericVector(finalCount.begin(),finalCount.end())
-  );
+//   return List::create(_["mc"]=mutantCount,_["fn"]=finalCount);
+  
+//   return List::create(_["mc"]=NumericVector(mutantCount.begin(),mutantCount.end()),
+// 		      _["fn"]=NumericVector(finalCount.begin(),finalCount.end())
+//   );
 
 
 }
@@ -115,26 +95,28 @@ Rcpp::List FLAN_Sim::computeSamplesMutantsFinalsNumber(int n)  {
 
 
 
-std::vector<long int> FLAN_Sim::computeSampleMutantsNumber(int n)  {
-
-    
-    std::vector<long int> mutantCount(n);
+NumericVector FLAN_Sim::computeSampleMutantsNumber(int n)  {
+  
+//     NumericVector mutantCount(n);
 //     FLAN_Clone *clone=new FLAN_Clone(mFitness,mDeath,mDist);
 
     // poisson number of mutation
 
-    std::vector<double> sample;
+    NumericVector sample;
     double s;
     // set the size of the mutants
-    double mcs;
+//     double mcs;
+//     NumericVector mcs=rpois(n,mMut);
+    NumericVector mutantCount=rpois(n,mMut);
     int mc;
-    for (std::vector<long int>::iterator it = mutantCount.begin();
-	  it != mutantCount.end(); ++it) {
+    int i=0;
+    for (NumericVector::iterator it = mutantCount.begin();
+	  it != mutantCount.end(); ++it,i++) {
 //       int i=0;i<n;i++) {
         // simulate a poisson number
 
-	  mcs=R::rpois(mMut);
-	  mc=(int)(mcs);
+// 	  mc=(int)(mcs[i]);
+	  mc=(int)(*it);
 
         if (mc>0) {
             //Poisson sum of Yule variables
@@ -173,54 +155,57 @@ std::vector<long int> FLAN_Sim::computeSampleMutantsNumber(int n)  {
      * finalCount:
      */
 
-std::vector<long int> FLAN_Sim::computeSampleMutantsNumber(int n,
-					  const std::vector<double>& finalCount)  {
+NumericVector FLAN_Sim::computeSampleMutantsNumber(int n,
+					  NumericVector& finalCount)  {
 
-    std::vector<long int> mutantCount(n);
+    NumericVector mutantCount(n);
 //     FLAN_SimClone* clone=new FLAN_SimClone(mFitness,mDeath,mDist);
 
     // poisson number of mutation
 
-    std::vector<double> sample;
+    NumericVector sample;
     double s;
     // set the size of the mutants
 //     mutantCount.resize(n);
 
-    double mcs;
+//     double mcs;
+    double lambda;
     int mc;
-    int i=0;
-//     RNGScope rngScope;
-
-    for (std::vector<long int>::iterator it = mutantCount.begin();
-	  it != mutantCount.end(); ++it, i++) {
+//     int i=0;
+    NumericVector::iterator itfn=finalCount.begin();
+    for (NumericVector::iterator itmc = mutantCount.begin();
+	  itmc != mutantCount.end(); ++itmc, ++itfn) {
         // simulate a poisson number
-
-      mcs=R::rpois(mMut*finalCount[i]);
-      mc=(int)(mcs);
-// 	  std::cout<<"mc ="<<mc<<std::endl<<std::endl;
-
-        if (mc>0) {
+      lambda=mMut*(*itfn);
+//       mcs=R::rpois(lambda);
+//       mcs=rpois(1,lambda)[0];
+//       std::cout<<"mcs ="<<mcs<<std::endl<<std::endl;
+//       mc=(int)(mcs);
+      mc=(int)(rpois(1,lambda)[0]);
+      
+      if (mc>0) {
             //Poisson sum of Yule variables
             sample=mClone->computeSample(mc);
-
             //s = sum_j sample[j]
 //             int m=sample.getSize();
             s=0;
 	    int j=0;
-	    bool testneg=false;
+	    double sj;
+	    bool testNaN=false;
 //             for (int j=0;j<m;j++){
-	    while(j<mc && !testneg){
-	      if(sample[j] < 0){
-		testneg=true;
-		s=-10^5;
+	    while(j<mc && !testNaN){
+	      sj=sample[j];
+	      if(sj < 0){
+		testNaN=true;
+		s=sj;
 	      } else {
-		s+=sample[j];
+		s+=sj;
 		j++;
 	      }
 	    }
-	    *it=s;
+	    *itmc=s;
         } else
-            *it=0;
+            *itmc=0;
     }
     
     return mutantCount;

@@ -22,9 +22,6 @@
 #ifndef FLAN_CLONE_H
 #define FLAN_CLONE_H
 
-
-#include <Rcpp.h>
-
 #include "MATH_Function.h"
 
 using namespace Rcpp ;
@@ -38,6 +35,8 @@ private:
 
   std::string mName;                // Name of the distribution
   std::vector<double> mParams;      // Parameter(s) of the distribution
+  
+//   MATH_Integration* mIntegrator;
 
 
 public:
@@ -74,6 +73,8 @@ public:
 
       double meanlog=mParams[0];
       double sdlog=mParams[1];
+      
+      
 
       // [...] cf source R
 
@@ -113,21 +114,37 @@ protected:
   static const double DEATH_EPS_SIM;     // Threshold for death
 
 public:
-    FLAN_SimClone();
+    FLAN_SimClone(){};
 
-    ~FLAN_SimClone();
+    ~FLAN_SimClone(){};
 
+    FLAN_SimClone(double rho,double death, List dist){
+
+      mFitness=rho;
+      mDeath=death;
+      
+      mDist= new FLAN_Dist(dist);
+      mDist->adjustGrowthRate(mDeath);
+
+    };
       // create object to generate samples
-    FLAN_SimClone(double rho,double death, FLAN_Dist *dist);
+    FLAN_SimClone(double rho,double death, FLAN_Dist *dist){
+
+      mFitness=rho;
+      mDeath=death;
+      mDist=dist;
+
+    };
 
     // -----------------------
     // Sample computation
     // ------------------------
 
-    std::vector<double> computeSample(int n);
+    NumericVector computeSample(int n);
 
 
-    int splitTimes(double t,std::vector<double>& splitTimes);
+    int splitTimes(double t);
+//     ,std::vector<double>& splitTimes);
 
 };
 
@@ -148,33 +165,38 @@ protected:
     double mDeath;      // Death probability
 
 
-    FLAN_Clone();
+    FLAN_Clone(){};
 
     // create object for GF method
-    FLAN_Clone(double death);
+    FLAN_Clone(double death){
+      mDeath=death;
+    };
 
     // create object to compute distribution
-    FLAN_Clone(double rho,double death);
+    FLAN_Clone(double rho,double death){
+      mFitness=rho;
+      mDeath=death;
+    };
 
 
-    virtual ~FLAN_Clone();
+    ~FLAN_Clone(){};
 
 
     // Set attributes
-    inline void setFitness(double rho){
+    void setFitness(double rho){
       mFitness=rho;
     }
-    inline void setDeath(double death){
+    void setDeath(double death){
       mDeath=death;
     }
 
 
     // Get attributes
 
-    inline double getFitness(){
+    double getFitness(){
       return mFitness;
     }
-    inline double getDeath(){
+    double getDeath(){
       return mDeath;
     }
 
@@ -185,7 +207,7 @@ public:
     /*! \brief compute the probability Pk[k]=k+1 , k in [0,pkMax[
      * @return true if the computing succeeds otherwise it returns false because of wrong parameter of the distribution
      */
-    virtual List get() = 0;
+//     virtual List get() = 0;
     virtual std::vector<double> computeProbability(int m) = 0;
 
     /*! \brief compute the first derivatives of pk with respect to the parameters
@@ -193,7 +215,7 @@ public:
      * @return true if the computing succeeds otherwise it returns false because of wrong parameter of the distribution
      *
      */
-    virtual std::vector<double> computeProbability1DerivativeRho(int m, const std::vector<double> P) = 0;
+    virtual std::vector<double> computeProbability1DerivativeRho(int m,std::vector<double> P) = 0;
 
 
     /*/////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,9 +258,10 @@ class FLAN_ExponentialClone : public FLAN_Clone {
 
     void init() {
       double flantol=Environment::global_env()[".flantol"];
+      List fns=Environment::global_env().get(".integrands");
 
 //       std::cout<<"Size ="<<integrands.size()<<std::endl;
-      mIntegrator=new MATH_Integration(flantol);
+      mIntegrator=new MATH_Integration(fns,flantol);
     }
 
   public:
@@ -259,15 +282,15 @@ class FLAN_ExponentialClone : public FLAN_Clone {
     /* Compute the probability P[X=k]
      * Stor it in vector mProb
      */
-    List get(){
-	     return mIntegrator->getFns();
-    };
+//     List get(){
+// 	     return mIntegrator->getFns();
+//     };
 
     std::vector<double> computeProbability(int m);
 
 //     virtual void computeProbability1Derivatives(int m, double rho, double death) const=0;
 
-    std::vector<double> computeProbability1DerivativeRho(int m,const std::vector<double> P) ;
+    std::vector<double> computeProbability1DerivativeRho(int m,std::vector<double> P) ;
 
 //     double computeGeneratingFunction(double z)  ;
 
@@ -284,25 +307,35 @@ class FLAN_ExponentialClone : public FLAN_Clone {
 class FLAN_DiracClone : public FLAN_Clone {
 //   SP_OBJECT(FLAN_DiracClone);
 
-  protected:
+private:
+  
+  void init_death(){
+      mPol=MATH_Polynom();
+    }
 
-  private:
+protected:
+    
+    MATH_Polynom mPol;
 
-
-  public:
+public:
 
     FLAN_DiracClone():FLAN_Clone() {};
-    FLAN_DiracClone(double death):FLAN_Clone(death) {};
-    FLAN_DiracClone(double rho,double death):FLAN_Clone(rho,death) {};
+    FLAN_DiracClone(double death):FLAN_Clone(death) {
+      if(death > 0) init_death();
+    };
+    FLAN_DiracClone(double rho,double death):FLAN_Clone(rho,death) {
+      if(death > 0) init_death();
+    };
     ~FLAN_DiracClone(){};
 
 
-    List get(){};
+    
+//     List get(){};
 
     std::vector<double> computeProbability(int m);
 
 
-    std::vector<double> computeProbability1DerivativeRho(int m,const std::vector<double> P) ;
+    std::vector<double> computeProbability1DerivativeRho(int m,std::vector<double> P) ;
 
 //     double computeGeneratingFunction(double z)  ;
 

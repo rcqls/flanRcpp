@@ -19,7 +19,6 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-// #include <Rcpp.h>
 
 #ifndef FLAN_MUTATION_MODEL_H
 #define FLAN_MUTATION_MODEL_H
@@ -48,51 +47,102 @@ protected:
 public: 
 
     //  Create an object 
-    FLAN_MutationModel();
+    FLAN_MutationModel(){};
     
     // Create object for GF method
-    FLAN_MutationModel(double death,std::string model);
+    FLAN_MutationModel(double death,std::string model){
+  
+      mDeath=death;
+      FLAN_Clone* clone;
+      
+      if(model.compare("LD") == 0){
+	clone=new FLAN_ExponentialClone(death);
+      }
+      if(model.compare("H") == 0){
+	clone=new FLAN_DiracClone(death);
+      }
+      mClone=clone;
+    //   mZ4=0.55;
+      mLT=true;
+    };
     
     // Create object for GF method
-    FLAN_MutationModel(double rho,double death,std::string model);
+    FLAN_MutationModel(double rho,double death,std::string model){
+  
+      mFitness=rho;
+      mDeath=death;
+      
+      FLAN_Clone* clone;
+      
+      if(model.compare("LD") == 0){
+	clone=new FLAN_ExponentialClone(rho,death);
+      }
+      if(model.compare("H") == 0){
+	clone=new FLAN_DiracClone(rho,death);
+      }
+      mClone=clone;
+      
+      mLT=true;
+    };
     
     // Create object for distribution
-    FLAN_MutationModel(List args);
+    FLAN_MutationModel(List args){
+  
+      mMutNumber=as<double>(args["mutations"]);
+      mFitness=as<double>(args["fitness"]);
+      mDeath=as<double>(args["death"]);
+      
+      std::string model=args["model"];
+      
+      FLAN_Clone* clone;
+      
+      if(model.compare("LD") == 0){
+	clone=new FLAN_ExponentialClone(mFitness,mDeath);
+      }
+      if(model.compare("H") == 0){
+	clone=new FLAN_DiracClone(mFitness,mDeath);
+      }
+      mClone=clone;
+      
+      mLT=as<bool>(args["lt"]);
+      
+      
+    };
     
     // Destructor
-    ~FLAN_MutationModel();   
+    ~FLAN_MutationModel(){};   
     
     
     // Set attributes
-    inline void setMutNumber(double alpha) {
+    void setMutNumber(double alpha) {
       mMutNumber=alpha;
     };
-    inline void setFitness(double rho){
+    void setFitness(double rho){
       mFitness=rho;
     };
-    inline void setDeath(double death){
+    void setDeath(double death){
       mDeath=death;
     };
-    inline void setClone(FLAN_Clone* clone){
+    void setClone(FLAN_Clone* clone){
       mClone=clone;
     };
     
-    List getFns(){
-      return mClone->get();
-}
+//     List getFns(){
+//       return mClone->get();
+// }
     
     // Get attributes
     
-    inline double getMutNumber(){
+    double getMutNumber(){
       return mMutNumber;
     };
-    inline double getFitness(){
+    double getFitness(){
       return mFitness;
     };
-    inline double getDeath(){
+    double getDeath(){
       return mDeath;    
     };
-    inline FLAN_Clone* getClone(){
+    FLAN_Clone* getClone(){
       return mClone;
     };
     
@@ -108,35 +158,41 @@ public:
     std::vector<double> deduceProbability(int m,std::vector<double>& pClone) ;
 			
 			    
-    bool computeProbability1DerivativeAlpha(int m,
-					    std::vector<double>& Q,
-					    std::vector<double>& dQ_da)  ;    
-    bool deduceProbability1DerivativeAlpha(int m,
-					    std::vector<double>& pClone,
-					    std::vector<double>& Q,
-					    std::vector<double>& dQ_da)  ;
+    List computeProbability1DerivativeAlpha(int m
+// 					    std::vector<double>& Q,
+// 					    std::vector<double>& dQ_da
+							  )  ;    
+    List deduceProbability1DerivativeAlpha(int m,
+					    std::vector<double>& pClone
+// 					    std::vector<double>& Q,
+// 					    std::vector<double>& dQ_da
+							 )  ;
     
 					      
-    bool computeProbability1DerivativeRho(int m,
-					  std::vector<double>& Q,
-					  std::vector<double>& dQ_dr)  ;
-    bool deduceProbability1DerivativeRho(int m,
+    List computeProbability1DerivativeRho(int m
+// 					  std::vector<double>& Q,
+// 					  std::vector<double>& dQ_dr
+							)  ;
+    List deduceProbability1DerivativeRho(int m,
 					  std::vector<double>& pClone,
-					  std::vector<double>& dpClone_r,
-					  std::vector<double>& Q,
-					  std::vector<double>& dQ_dr) ;
+					  std::vector<double>& dpClone_r
+// 					  std::vector<double>& Q,
+// 					  std::vector<double>& dQ_dr
+						       ) ;
     
 					    
-    bool computeProbability1DerivativesAlphaRho(int m,
-						std::vector<double>& Q,
-						std::vector<double>& dQ_da,
-						std::vector<double>& dQ_dr)  ;
-    bool deduceProbability1DerivativesAlphaRho(int m,
+    List computeProbability1DerivativesAlphaRho(int m
+// 						std::vector<double>& Q,
+// 						std::vector<double>& dQ_da,
+// 						std::vector<double>& dQ_dr
+					       )  ;
+    List deduceProbability1DerivativesAlphaRho(int m,
 						std::vector<double>& pClone,
-						std::vector<double>& dpClone_r,
-						std::vector<double>& Q,
-						std::vector<double>& dQ_da,
-						std::vector<double>& dQ_dr)  ;
+						std::vector<double>& dpClone_r
+// 						std::vector<double>& Q,
+// 						std::vector<double>& dQ_da,
+// 						std::vector<double>& dQ_dr
+					      )  ;
     
 //     void computeProbability1Derivatives(int m,double alpha,double rho,double death) ;
     
@@ -151,6 +207,10 @@ public:
 //     // --------------------
 //     // GF ESTIMATION covariance methods
 //     // -------------------
+    
+//     List MutationGFEstimation(std::vector& mutantsCount){
+//       
+//     }
 // 
 //     double covariance(double z1, double z2) ;
 //     

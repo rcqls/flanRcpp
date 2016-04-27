@@ -23,63 +23,43 @@
 
 #include "FLAN_Clone.h"
 
-
-FLAN_SimClone::FLAN_SimClone(){}
-
-FLAN_SimClone::FLAN_SimClone(double rho,double death, FLAN_Dist *dist){
-
-  mFitness=rho;
-  mDeath=death;
-  mDist=dist;
-
-}
-
-FLAN_SimClone::~FLAN_SimClone(){}
-
 const double FLAN_SimClone::DEATH_EPS_SIM=1.e-4;
 
-std::vector<double> FLAN_SimClone::computeSample(int n) {
+// std::vector<double> FLAN_SimClone::computeSample(int n) {
+NumericVector FLAN_SimClone::computeSample(int n) {
 
-  std::vector<double> sample(n);
+//   std::vector<double> sample(n);
+  
+//   RNGScope rngScope;
 
+//   std::cout<<"RHO ="<<mFitness<<std::endl;
   std::string name=mDist->getDistName();
-
-  for(std::vector<double>::iterator it = sample.begin();
-	  it != sample.end(); ++it) {
-      //mExponentialD->setProperties(mFitness);
-      //mExponentialD->computeSample(n,sample);
-      *it=R::rexp(mFitness);
-  }
+  
+  NumericVector sample=rexp(n,mFitness);
+  
 
   if(name.compare("dirac") == 0){
 
     // specialized method
     if (mDeath<DEATH_EPS_SIM) {
         // case without mDeath
-//         for (int k=0 ; k<n ; k++) {
-	for(std::vector<double>::iterator it = sample.begin();
+      for(NumericVector::iterator it = sample.begin();
 	  it != sample.end(); ++it) {
-// 	  sample[k] = pow(2,floor(sample[k]/log(2)));
 	  *it = pow(2.,floor(*it/log(2.)));
         }
     } else {
-        // case with mDeath
-        double t=0,a=log(2*(1-mDeath));
-//         for (int k=0 ; k<n ; k++) {
-	for(std::vector<double>::iterator it = sample.begin();
+        // case with death
+        double t,a=log(2*(1-mDeath));
+	for(NumericVector::iterator it = sample.begin();
 	  it != sample.end(); ++it) {
 
 	  double cg=0;
 	  int m=1;
 	  int nAlives=0,nDeaths=0;
-
-// 	  t=sample[k];
 	  t=*it;
             while ((cg<t-a) && (m>0)) {
-//                 mBinomialD->setProperties(m,mDeath);
-                // number of mDeaths in [0,m]
-//                 nDeaths=mBinomialD->random();
-		nDeaths=R::rbinom(m,mDeath);
+// 		nDeaths=R::rbinom(m,mDeath);
+		nDeaths=(int)(rbinom(1,m,mDeath)[0]);
                 // the number of alives among m
                 nAlives=m-nDeaths;
                 // the new alive cells
@@ -94,22 +74,28 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
     }
    // end if dirac distribution
   } else if(name.compare("exp") == 0) {
-
+//       std::cout<<"Dist = exp"<<std::endl;
       double p,up;
       double geoD,beD;
 
       if (mDeath<DEATH_EPS_SIM) {
   //         for (int k=0;k<n;k++) {
-	for(std::vector<double>::iterator it = sample.begin();
+	for(NumericVector::iterator it = sample.begin();
 	    it != sample.end(); ++it) {
 	      p=exp(-(*it));
+	      
+// 	      geoD=R::rgeom(p);
+	      geoD=rgeom(1,p)[0];
 
-	      geoD=R::rgeom(p);
-
-	      if(geoD>=0) *it=geoD+1;
+	      if(geoD>=0) {
+		*it=geoD+1;
+	      } else if (geoD<0 || geoD!=geoD){
+// 		std::cout<<"Geom négative avec param p="<<p<<std::endl;
+// 		std::cout<<"Rappel p=exp(-sample) et sample="<<*it<<std::endl;
+		*it=-10^5;
+	      }
   // 	    else {
-  // // 	      std::cout<<"Geom négative avec param p="<<p<<endl;
-  // // 	      std::cout<<"Rappel p=exp(-sample) et sample="<<sample[k]<<endl;
+  
   // 	      sample[k]="NaN";
   // 	    }
 
@@ -117,20 +103,23 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
 
 	  }
       } else {
-	for(std::vector<double>::iterator it = sample.begin();
+	for(NumericVector::iterator it = sample.begin();
 	    it != sample.end(); ++it) {
 
 	      p=exp(-(*it));
+	      
 	      up=(1-2*mDeath)/(1-mDeath*(1+p));
 
-	      beD=R::rbinom(1,up);
+// 	      beD=R::rbinom(1,up);
+	      beD=rbinom(1,1,up)[0];
 
   //             mBernoulliD->setProperties(up);
   //             mBernoulliD->computeSample(1,beD);
 
 	      if (beD==1){
 
-		  geoD=R::rgeom(p*up);
+// 		  geoD=R::rgeom(p*up);
+		geoD=rgeom(1,p*up)[0];
 
   // 	      if(geoD[0]<0) {
   // 		std::cout<<"Geom négative avec param p="<<p<<endl;
@@ -138,7 +127,12 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
     // 	      std::cout<<"tel quel"<<geoD[0]<<endl;
     // 	      std::cout<<"après castage"<<(int)(geoD[0])<<endl;
   // 	      }
-		if(geoD>=0) *it=geoD+1;
+	      if(geoD>=0) {
+		*it=geoD+1;
+	      } else if (geoD<0 || geoD!=geoD){
+		std::cout<<"Geom négative avec param p="<<p<<std::endl;
+		std::cout<<"Rappel p=exp(-sample) et sample="<<*it<<std::endl;
+	      }
 
 	      } else *it=0;
   // 	  if(sample[k]<0) std::cout<<sample[k]<<endl;
@@ -149,11 +143,12 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
 
     // transform the sample
 
-    std::vector<double> splitTimesList;
+//     std::vector<double> splitTimesList;
     int nc=0;
-    for(std::vector<double>::iterator it = sample.begin();
+    for(NumericVector::iterator it = sample.begin();
 	  it != sample.end(); ++it) {
-	     nc=splitTimes(*it,splitTimesList);
+	     nc=splitTimes(*it);
+// 	     ,splitTimesList);
         //sample[k]=splitTimesList.getSize()-1;
         *it=nc;
     }
@@ -164,79 +159,62 @@ std::vector<double> FLAN_SimClone::computeSample(int n) {
 }
 
 
-int FLAN_SimClone::splitTimes(double t,std::vector<double>& splitTimesList) {
+int FLAN_SimClone::splitTimes(double t) {
+// ,std::vector<double>& splitTimesList) {
 
     std::string name=mDist->getDistName();
     std::vector<double> params=mDist->getDistParams();
 
+    
     // return the clone size
     int cloneSize=0;
 
     // initialize return vector
-    splitTimesList.resize(1);
+//     splitTimesList.resize(1);
 
     //current generation
     int g=0;
 
     // make a sample of size 1
     //division times of current generation
-    std::vector<double> st(1);
+    NumericVector st;
 
-    if(name.compare("lnorm") == 0) st[0]=R::rlnorm(params[0],params[1]);
-    if(name.compare("gamma") == 0) st[0]=R::rgamma(params[0],params[1]);
+    if(name.compare("lnorm") == 0) st=rlnorm(1,params[0],params[1]);
+    if(name.compare("gamma") == 0) st=rgamma(1,params[0],params[1]);
 
 
 
     // add initial time
 //     splitTimesList.add(0);
-    splitTimesList[0]=0;
+//     splitTimesList[0]=0;
 
     // take only the times if before t
     // ng is the number of simulated value less than t
     // number of alive cells
-    int ng=0;
+    int ng=0,nActiveAlives;
+    NumericVector gtf;
 
-    std::vector<double> u(1);
-//     if (mDeath>0) runif->computeSample(1,u);
-    if (mDeath>0) u[0]=R::runif(0.,1.);
+//     std::vector<double> u(1);
 
-    if ((st[0]<t)&& ((mDeath==0) || ((mDeath>0) && (u[0]>mDeath)))) {
-        // division at  t of an alive cell
-//         splitTimesList.add(st[0]);
-      splitTimesList.push_back(st[0]);
+    // If no cells death
+    if(mDeath<DEATH_EPS_SIM){
+      if(st[0]<t){
+// 	splitTimesList.push_back(st[0]);
         ng=1;
-    } else if (st[0]>=t) {
-        // no division before t
-        ng=0;
-        cloneSize++;
-
-    } else if ((mDeath>0) && (u[0]<=mDeath)) {
-        // the cell dies
-        ng=0;
-    }
-
-
-
-    std::vector<double> gtf;
-    int nActiveAlives=ng;
-
-    // main loop
-    while ((ng>0) && (ng<1.e+6)) {
-        //next generation
-        g++;
-
-        // compute a sample of size 2*ng
-        //division times of daughters
-//         distribution.computeSample(2*ng,gtf);
-	gtf.resize(2*ng);
-
-	for(std::vector<double>::iterator it=gtf.begin() ; it != gtf.end() ;
-	    ++it) {
-	  if(name.compare("lnorm") == 0) *it=R::rlnorm(params[0],params[1]);
-	  if(name.compare("gamma") == 0) *it=R::rgamma(params[0],params[1]);
-	}
-
-        //  split times of daughters with duplicating split times
+      } else {
+	// no division before t
+	ng=0;
+	cloneSize++;
+      }
+      nActiveAlives=ng;
+      
+      while ((ng>0) && (ng<1.e+6)) {
+	g++;
+	
+	if(name.compare("lnorm") == 0) gtf=rlnorm(2*ng,params[0],params[1]);
+	if(name.compare("gamma") == 0) gtf=rgamma(2*ng,params[0],params[1]);
+	
+	//  split times of daughters with duplicating split times
         for (int i=0;i<ng;i++) {
             gtf[2*i]+=st[i];
             gtf[2*i+1]+=st[i];
@@ -246,51 +224,84 @@ int FLAN_SimClone::splitTimes(double t,std::vector<double>& splitTimesList) {
         // keep only values less than t
         // daughters that still divide
         // keep their split times
-//         if (mDeath>0) runif->computeSample(ng,u);
-	if (mDeath>0) {
-	  u.resize(ng);
-	  for(std::vector<double>::iterator it=u.begin() ; it != u.end() ;
-	    ++it) {
-	    *it=R::runif(0.,1.);
-	  }
-	}
-
-        st.resize(ng);
-        nActiveAlives=0;
+	
+	nActiveAlives=0;
         for (int i=0;i<ng;i++) {
+            if (gtf[i]<t) {
+                // division at  t of an alive cell
+                st[nActiveAlives]=gtf[i];
+                nActiveAlives++;
+            } else {
+                // no division before t
+                cloneSize++;
+            }
+        }
+//         splitTimesList.insert(splitTimesList.end(), st.begin(), st.end());
+        // ng is the size of st
+        //dividing cells in next generation
+        ng=nActiveAlives;
+      }
+    // If cells death with prob mDeath
+    } else {
+      NumericVector u=runif(1,0.,1.);
+      if((st[0]<t) && (u[0]>mDeath)){
+// 	splitTimes.add(st[0]);
+        ng=1;
+      } else if (st[0]>=t){
+	// no division before t
+	ng=0;
+	cloneSize++;
+      } else if(u[0] <= mDeath) {
+	// the cell dies out
+	ng=0;
+      }
+      nActiveAlives=ng;
+      
+      while ((ng>0) && (ng<1.e+6)) {
+	g++;
+	
+	if(name.compare("lnorm") == 0) gtf=rlnorm(2*ng,params[0],params[1]);
+	if(name.compare("gamma") == 0) gtf=rgamma(2*ng,params[0],params[1]);
+	
+	//  split times of daughters with duplicating split times
+        for (int i=0;i<ng;i++) {
+            gtf[2*i]+=st[i];
+            gtf[2*i+1]+=st[i];
+        }
 
-            if ((gtf[i]<t)&&
-                ((mDeath==0) || ((mDeath>0) && u[i]>mDeath))) {
+        ng*=2;
+	
+	u=runif(ng,0.,1.);
+	
+	nActiveAlives=0;
+	
+	for (int i=0;i<ng;i++) {
+
+            if ((gtf[i]<t) && (u[i]>mDeath)) {
                 // division at  t of an alive cell
                 st[nActiveAlives]=gtf[i];
                 nActiveAlives++;
             } else if (gtf[i]>=t) {
                 // no division before t
                 cloneSize++;
-
             }
         }
-        // resize st to usefull length
-        st.resize(nActiveAlives);
-
-
         // append st to spliTimes list
         //stack split times
 //         splitTimesList.append(st);
-	splitTimesList.insert(splitTimesList.end(), st.begin(), st.end());
+// 	splitTimesList.insert(splitTimesList.end(), st.begin(), st.end());
 
         // ng is the size of st
         //dividing cells in next generation
         ng=nActiveAlives;
+      }
     }
-    //reorder split times
-//     splitTimesList.sort();
 
-    std::sort(splitTimesList.begin(),splitTimesList.end());
+//     std::sort(splitTimesList.begin(),splitTimesList.end());
 
     //return split times before t
 //     splitTimesList.add(t);
-    splitTimesList.push_back(t);
+//     splitTimesList.push_back(t);
 
     return cloneSize;
 }
@@ -300,30 +311,7 @@ int FLAN_SimClone::splitTimes(double t,std::vector<double>& splitTimesList) {
   /*//////////////////////////////////////////////////////////////////////////////////////////////
   * FLAN_Clone class for the distribution of a clone size
   */
-
-
 const double FLAN_Clone::DEATH_EPS_DIST=1.e-4;
-
-FLAN_Clone::FLAN_Clone() {
-}
-
-
-FLAN_Clone::FLAN_Clone(double death) {
-  mDeath=death;
-}
-
-// create object for distribution
-FLAN_Clone::FLAN_Clone(double rho, double death) {
-  mFitness=rho;
-  mDeath=death;
-
-
-}
-
-
-FLAN_Clone::~FLAN_Clone() {}
-
-
 
  /*//////////////////////////////////////////////////////////////////////////////////////////////
   * FLAN_Clone class when the lifetime model is supposed to be exponential
@@ -343,23 +331,24 @@ std::vector<double> FLAN_ExponentialClone::computeProbability(int m){
     P[0]=0;
     if(m == 0) return P;
 
-    int k=1;
-    for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.end() ; ++it,k++) *it=R::beta(mFitness+1,k);
+    std::vector<double>::iterator it=P.begin()+1;
+//     for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.end() ; ++it,k++) *it=R::beta(mFitness+1,k);
+    for(int k=1 ; k<=m ; ++it,k++) *it=mFitness*R::beta(mFitness+1,k);
 
     } else {
     double d1=mDeath/(1-mDeath);
     int m_max=1000;
-    std::cout<<"function type set"<<std::endl;
-    std::cout<<mIntegrator<<std::endl;
+//     std::cout<<"function type set"<<std::endl;
+//     std::cout<<mIntegrator<<std::endl;
 //     mIntegrator->testintegralFunction(0,1,1,0.05);
-    std::cout<<"done1"<<std::endl;
+//     std::cout<<"done1"<<std::endl;
     mIntegrator->setFunctionName("CLONE_P0_WD");
-    std::cout<<"done"<<std::endl;
+//     std::cout<<"done"<<std::endl;
     //integrate the function in [0,1]
     double I;
     // m=0 probability
     I=mIntegrator->integralFunction(0.,1.,mFitness,d1,0.);
-    std::cout<<"integral computed"<<std::endl;
+//     std::cout<<"integral computed"<<std::endl;
     P[0]=I*d1*mFitness;
 
 //     sum_pk+=p_k;
@@ -371,20 +360,22 @@ std::vector<double> FLAN_ExponentialClone::computeProbability(int m){
     //m>0 probability
     int m1=m;
     if (m1>=m_max) m1=m_max;
-    int k=1;
-//     for (int k=2;k<=m1;k++) {
-    for(std::vector<double>::iterator it=P.begin()+1 ; it!= P.begin()+m1 ; ++it, k++){
-        mIntegrator->setFunctionName("CLONE_PK_WD");
-        mIntegrator->integralFunction(0.,1.,mFitness,d2,k);
-        *it=I*d2*mFitness*pow(k,-mFitness-1.);
+//     int k=1;
+    mIntegrator->setFunctionName("CLONE_PK_WD");
+    std::vector<double>::iterator it=P.begin()+1;
+    for (int k=1;k<=m1;k++,++it) {
+//           std::cout<<"k ="<<k<<std::endl;  
+	  I=mIntegrator->integralFunction(0.,k,mFitness,d1,k);
+// 	  std::cout<<"I ="<<I<<std::endl;  
+	  *it=I*d2*mFitness*pow(k,-mFitness-1.);
+// 	  P[k]=I*d2*mFitness*pow(k,-mFitness-1.);
     }
 
     // equivalent computation
     double a=pow(d2,(1.-mFitness)/2.)*mFitness*R::gammafn(mFitness+1);
-    k=m1+1;
-    for(std::vector<double>::iterator it=P.begin()+m1+1 ; it!= P.end() ; ++it, k++){
-    //     for (int k=m1+1;k<=m;k++) {
-        *it=a*pow(k,-mFitness-1);
+//     k=m1+1;
+    for (int k=m1+1;k<=m;k++,++it) {
+      *it=a*pow(k,-mFitness-1);
 //         sum_pk+=p_k;
     }
  }
@@ -394,24 +385,76 @@ std::vector<double> FLAN_ExponentialClone::computeProbability(int m){
 }
 
 
-std::vector<double> FLAN_ExponentialClone::computeProbability1DerivativeRho(int m,const std::vector<double> P){
+std::vector<double> FLAN_ExponentialClone::computeProbability1DerivativeRho(int m,std::vector<double> P){
 
   std::vector<double>dP_dr(m+1);
-
+//   double pk;
+  
   if(mDeath<DEATH_EPS_DIST){
-
+    
     dP_dr[0]=0;
     if(m == 0) return dP_dr;
 
-    int k=1;
+//     int k=1;
+    std::vector<double>::iterator it=dP_dr.begin()+1 ;
     double dg=R::digamma(mFitness+1);
-    for(std::vector<double>::iterator it=dP_dr.begin()+1 ; it!= dP_dr.end(); ++it,k++)
+    for(int k=1; k<=m ; k++,++it){
+//     for(std::vector<double>::iterator it=dP_dr.begin()+1 ; it!= dP_dr.end(); ++it,k++){
+//       pk=R::beta(mFitness+1,k);
       *it=P[k]*(1/mFitness+dg-R::digamma(mFitness+k+1));
-
+//       *it=pk*(1/mFitness+dg-R::digamma(mFitness+k+1));
+    }
   } else {
-    double dstar=mDeath/(1-mDeath);
+    double d1=mDeath/(1-mDeath);
+    
+    double I;
+    
+    int m_max=1000;
+    // set the function type
+//     mIntegrator->setFunctionName("CLONE_P0_WD");
+//     I=mIntegrator->integralFunction(0.,1.,mFitness,d1,0.);
+//     pk=I*d1*mFitness;
+    
+    mIntegrator->setFunctionName("CLONE_dP0_dr_WD");
+    //integrate the function in [0,1]
+    // m=0 probability
+    I=mIntegrator->integralFunction(0.,1.,mFitness,d1,0.);
+    dP_dr[0]=I*d1*mFitness+P[0]/mFitness;
+//     dP_dr[0]=I*d1*mFitness+pk/mFitness;
 
-    //                  [.....]
+//     sum_pk+=p_k;
+    if (m==0) return dP_dr;
+
+    
+    double d2=(1.-2.*mDeath)/(1-mDeath);
+    d2*=d2;
+    //m>0 probability
+    int m1=m;
+    if (m1>=m_max) m1=m_max;
+//     int k=1;
+    std::vector<double>::iterator it=dP_dr.begin()+1 ;
+    for (int k=1;k<=m1;++it,k++) {
+// 	mIntegrator->setFunctionName("CLONE_PK_WD");
+// 	I=mIntegrator->integralFunction(0.,k,mFitness,d1,k);
+// 	pk=I*d2*mFitness*pow(k,-mFitness-1.);
+	
+	mIntegrator->setFunctionName("CLONE_dPK_dr_WD");
+        I=mIntegrator->integralFunction(0.,k,mFitness,d1,k);
+        *it=P[k]/mFitness+I*d2*mFitness*pow(k,-mFitness-1.);
+// 	*it=pk/mFitness+I*d2*mFitness*pow(k,-mFitness-1.);
+    }
+
+    // equivalent computation
+    double gfn=R::gammafn(mFitness+1);
+    double rhodg=mFitness*R::digamma(mFitness+1);
+    double a=pow(d2,(1-mFitness)/2.);
+    double b=-0.5*log(d2)*mFitness+1.;
+//     for(std::vector<double>::iterator it=dP_dr.begin()+m1+1 ; it!= dP_dr.end() ; ++it, k++){
+    for(int k=m1+1; k<=m ;k++ , ++it){
+	*it=a*pow(k,-mFitness-1)*(
+            gfn*(b-mFitness*log(k))
+            +rhodg);
+    }
   }
 
   return dP_dr;
@@ -440,10 +483,77 @@ std::vector<double> FLAN_DiracClone::computeProbability(int m){
         //take only the indices index=2^ind for ind in [0,n] where index < m
     for (int k=0;k<=n;k++) P[pow(2,k)]=(1-pow(2,-mFitness))*pow(2,-k*mFitness);
 
-  } else {
-    double dstar=mDeath/(1-mDeath);
+  } else {   
+    for(std::vector<double>::iterator it=P.begin()+1;it!=P.end(); ++it) *it=0;
+        
+    // case with death >0
+    double eps=1.e-8;
+    double deps=1.e-10;
+    
+    int itmax=20;
+  
+    // initiate the polynome X
+    mPol=MATH_Polynom(1);
+    mPol[0]=0;
+    mPol[1]=1;
+    
 
-    //                  [.....]
+    // minimum number of iterations
+    int i=0;
+    double umd=1-mDeath;
+    double a=log(2*umd);
+    double t=exp(-mFitness*a);
+    double ti=1;//t^i
+    int Pol_degree=1;
+    
+    double sumP;
+    double sumP_old;
+    
+
+    // initialize P
+    P[0]=0;P[1]=1;
+    sumP=1;
+    double err = 1;
+    int dmax;
+    // loop
+//         while (((Pdegree<=m) || (fabs(sumPk-sumPk_old)>deps)) && (i<25)) {
+    std::vector<double>::iterator itP;
+    while (((Pol_degree<=m) || (err>deps)) && (i<itmax)) {
+	// next iteration
+// 	  std::cout<<"it n° "<<i<<std::endl;
+	i++;
+	ti*=t;
+	sumP_old=sumP;
+	
+	// update P
+	//P:=death+(1-death)*P^2
+	
+	mPol.square();
+// 	    P*=P;
+
+	mPol*=umd;
+	mPol+=mDeath;
+	mPol.reduce(eps);
+	Pol_degree=mPol.getDegree();
+	// update pk=sum_{i=1}^{i=number of polynoms computer} Pi[k] t^i
+	dmax=(m<Pol_degree)?m:Pol_degree;
+	sumP=0;
+	
+	itP=P.begin();
+	for (int k=0;k<=dmax;k++,++itP) {
+	    *itP+=mPol[k]*ti;
+	    sumP+=*itP;
+	}
+//             std::cout<<"pk[0]="<<pk[0]<<std::endl;
+      
+	//cout << "sum Pk["<<i<<"]="<<sumPk<<" P:"<<Pdegree<<" err="<<(fabs(sumPk-sumPk_old))<<" \n";
+	// next iteration
+	err = fabs(sumP-sumP_old);
+    } //end loop
+
+    // multiply by (1-t)
+    for(itP=P.begin() ; itP!=P.end();++itP) (*itP)*=(1-t);
+    
   }
 
   return P;
@@ -451,9 +561,11 @@ std::vector<double> FLAN_DiracClone::computeProbability(int m){
 }
 
 
-std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,const std::vector<double> P){
+std::vector<double> FLAN_DiracClone::computeProbability1DerivativeRho(int m,std::vector<double> P){
 
   std::vector<double>dP_dr(m+1);
+  
+//   std::vector<double> P=computeProbability(m);
 
   if(mDeath<DEATH_EPS_DIST){
 

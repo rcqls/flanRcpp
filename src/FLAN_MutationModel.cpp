@@ -20,80 +20,6 @@
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 #include "FLAN_MutationModel.h"
-
-FLAN_MutationModel::FLAN_MutationModel() {}
-
-    // Create object for GF method to estimate alpha and rho
-FLAN_MutationModel::FLAN_MutationModel(double death,std::string model){
-  
-  mDeath=death;
-  FLAN_Clone* clone;
-  
-  if(model.compare("LD") == 0){
-    clone=new FLAN_ExponentialClone(death);
-  }
-  if(model.compare("H") == 0){
-    clone=new FLAN_DiracClone(death);
-  }
-  mClone=clone;
-//   mZ4=0.55;
-  mLT=true;
-}
-
-    // Create object GF method to estimate only alpha
-FLAN_MutationModel::FLAN_MutationModel(double rho, double death, std::string model){
-  
-  mFitness=rho;
-  mDeath=death;
-  
-  FLAN_Clone* clone;
-  
-  if(model.compare("LD") == 0){
-    clone=new FLAN_ExponentialClone(rho,death);
-  }
-  if(model.compare("H") == 0){
-    clone=new FLAN_DiracClone(rho,death);
-  }
-  mClone=clone;
-  
-  mLT=true;
-}
-
-    // Create object for distribution
-FLAN_MutationModel::FLAN_MutationModel(Rcpp::List args){
-  
-  mMutNumber=as<double>(args["mutations"]);
-  mFitness=as<double>(args["fitness"]);
-  mDeath=as<double>(args["death"]);
-  
-  std::string model=args["model"];
-  
-  FLAN_Clone* clone;
-  
-  if(model.compare("LD") == 0){
-    clone=new FLAN_ExponentialClone(mFitness,mDeath);
-  }
-  if(model.compare("H") == 0){
-    clone=new FLAN_DiracClone(mFitness,mDeath);
-  }
-  mClone=clone;
-  
-  mLT=as<bool>(args["lt"]);
-  
-  
-}
-
-
-
-
-
-
-
-
-  // Destructor
-FLAN_MutationModel::~FLAN_MutationModel() {}
-
-
     // --------------------------
     // Probability methods
     //---------------------------
@@ -138,30 +64,33 @@ std::vector<double> FLAN_MutationModel::deduceProbability(int m,std::vector<doub
 }
 
 
-bool FLAN_MutationModel::computeProbability1DerivativeAlpha(int m,
-							    std::vector<double>& Q,
-							    std::vector<double>& dQ_da) {
+List FLAN_MutationModel::computeProbability1DerivativeAlpha(int m
+// 							    std::vector<double>& Q,
+// 							    std::vector<double>& dQ_da
+									  ) {
     
                                                  
     
     std::vector<double> P(m+1);
-    
     // compute the probabilities of mClone
     P=mClone->computeProbability(m);
     
-    return deduceProbability1DerivativeAlpha(m,P,Q,dQ_da);
+    return deduceProbability1DerivativeAlpha(m,P);
 }
 
 
-bool FLAN_MutationModel::deduceProbability1DerivativeAlpha(int m,
-							    std::vector<double>& P,
-							    std::vector<double>& Q,
-							    std::vector<double>& dQ_da) {
+List FLAN_MutationModel::deduceProbability1DerivativeAlpha(int m,
+							    std::vector<double>& P
+// 							    std::vector<double>& Q,
+// 							    std::vector<double>& dQ_da
+							  ) {
     
                                                     
     //initial probability Q0
-    Q.resize(m+1);
-    dQ_da.resize(m+1);
+    std::vector<double> Q(m+1);
+    std::vector<double> dQ_da(m+1);
+//     Q.resize(m+1);
+//     dQ_da.resize(m+1);
     
 //     for(std::vector<double>::iterator it=Q.begin(); it != Q.end(); ++it) *it=0;
     
@@ -170,7 +99,10 @@ bool FLAN_MutationModel::deduceProbability1DerivativeAlpha(int m,
         // first derivatives of Q with respect to mMutNumber
     dQ_da[0]=-(1-P[0])*Q[0];
    
-    if (m == 0) return true;
+//     if (m == 0) return true;
+    if (m == 0) return List::create(_["Q"]=Q[0],
+				    _["dQ_da"]=dQ_da[0]
+				   );
     
     double s,ds_da; 
     for (int k=1;k<=m;k++) {
@@ -182,14 +114,17 @@ bool FLAN_MutationModel::deduceProbability1DerivativeAlpha(int m,
 	Q[k]=(mMutNumber/k)*s;
         dQ_da[k]=ds_da-Q[k];
     }
-    
-    return true;
+    return List::create(_["Q"]=NumericVector(Q.begin(),Q.end()),
+			_["dQ_da"]=NumericVector(dQ_da.begin(),dQ_da.end())
+		       );
+//     return true;
 }
 
 
-bool FLAN_MutationModel::computeProbability1DerivativeRho(int m,
-							  std::vector<double>& Q,
-							  std::vector<double>& dQ_dr) {
+List FLAN_MutationModel::computeProbability1DerivativeRho(int m
+// 							  std::vector<double>& Q,
+// 							  std::vector<double>& dQ_dr
+									) {
     
                                                  
     
@@ -202,29 +137,35 @@ bool FLAN_MutationModel::computeProbability1DerivativeRho(int m,
     
     // compute the probabilities Q
 
-    return deduceProbability1DerivativeRho(m,P,dP_dr,Q,dQ_dr);
+    return deduceProbability1DerivativeRho(m,P,dP_dr);
 }
 
 
 
 
-bool FLAN_MutationModel::deduceProbability1DerivativeRho(int m,
+List FLAN_MutationModel::deduceProbability1DerivativeRho(int m,
 							  std::vector<double>& P,
-							  std::vector<double>& dP_dr,
-							  std::vector<double>& Q,
-							  std::vector<double>& dQ_dr) {
+							  std::vector<double>& dP_dr
+// 							  std::vector<double>& Q,
+// 							  std::vector<double>& dQ_dr
+								       ) {
     
                                                     
     //initial probability Q0
 
-    Q.resize(m+1);
-    dQ_dr.resize(m+1);
+    std::vector<double> Q(m+1);
+    std::vector<double> dQ_dr(m+1);
+//     Q.resize(m+1);
+//     dQ_dr.resize(m+1);
     
     // first derivatives of Q with respect to mFitness
     Q[0]=exp(-mMutNumber*(1.-P[0]));
     dQ_dr[0]=mMutNumber*(dP_dr[0])*Q[0];
     
-    if (m==0) return true;
+//     if (m==0) return true;
+    if (m==0)  return List::create(_["Q"]=Q[0],
+				   _["dQ_dr"]=dQ_dr[0]
+				  );
     
     double s=0,ds_dr=0;
     
@@ -240,15 +181,19 @@ bool FLAN_MutationModel::deduceProbability1DerivativeRho(int m,
 //         dQ_dr[k]=(mMutNumber/k)*ds_dr;
 
     }
-    return true;
+    return List::create(_["Q"]=NumericVector(Q.begin(),Q.end()),
+			_["dQ_dr"]=NumericVector(dQ_dr.begin(),dQ_dr.end())
+			);
+//     return true;
 }
 
 
 
-bool FLAN_MutationModel::computeProbability1DerivativesAlphaRho(int m,
-								std::vector<double>& Q,
-								std::vector<double>& dQ_da,
-								std::vector<double>& dQ_dr) {
+List FLAN_MutationModel::computeProbability1DerivativesAlphaRho(int m
+// 								std::vector<double>& Q,
+// 								std::vector<double>& dQ_da,
+// 								std::vector<double>& dQ_dr
+							       ) {
     
                                                  
     // compute the derivative with respect to mFitness of GY
@@ -259,22 +204,26 @@ bool FLAN_MutationModel::computeProbability1DerivativesAlphaRho(int m,
     dP_dr=mClone->computeProbability1DerivativeRho(m,P);
     
     
-    return deduceProbability1DerivativesAlphaRho(m,P,dP_dr,Q,dQ_da,dQ_dr);
+    return deduceProbability1DerivativesAlphaRho(m,P,dP_dr);
 }
 
 
-bool FLAN_MutationModel::deduceProbability1DerivativesAlphaRho(int m,
+List FLAN_MutationModel::deduceProbability1DerivativesAlphaRho(int m,
 								std::vector<double>& P,
-								std::vector<double>& dP_dr,
-								std::vector<double>& Q,
-								std::vector<double>& dQ_da,
-								std::vector<double>& dQ_dr) {
+								std::vector<double>& dP_dr
+// 								std::vector<double>& Q,
+// 								std::vector<double>& dQ_da,
+// 								std::vector<double>& dQ_dr
+							      ) {
     
                                                     
     //initial probability Q0
-    Q.resize(m+1);
-    dQ_da.resize(m+1);
-    dQ_dr.resize(m+1);
+    std::vector<double> Q(m+1);
+    std::vector<double> dQ_da(m+1);
+    std::vector<double> dQ_dr(m+1);
+//     Q.resize(m+1);
+//     dQ_da.resize(m+1);
+//     dQ_dr.resize(m+1);
     
     
     Q[0]=exp(-mMutNumber*(1-P[0]));
@@ -284,7 +233,11 @@ bool FLAN_MutationModel::deduceProbability1DerivativesAlphaRho(int m,
     // first derivatives of Q with respect to mFitness
     dQ_dr[0]=mMutNumber*(dP_dr[0])*Q[0];
 
-    if (m==0) return true;
+//     if (m==0) return true;
+    if (m==0) return List::create(_["Q"]=Q[0],
+				  _["dQ_da"]=dQ_da[0],
+				  _["dQ_dr"]=dQ_dr[0]
+				 );
     
     double s,ds_da,ds_dr;
     
@@ -292,14 +245,17 @@ bool FLAN_MutationModel::deduceProbability1DerivativesAlphaRho(int m,
         s=0;ds_da=0;ds_dr=0;
         for (int i=1;i<=k;i++) {
             s +=i*P[i]*Q[k-i];
-	    ds_da+=s/i;
+	    ds_da+=P[i]*Q[k-i];
 	    ds_dr+=dP_dr[i]*Q[k-i];
         }
         Q[k]=(mMutNumber/k)*s;
 	dQ_da[k]=ds_da-Q[k];
 	dQ_dr[k]=mMutNumber*ds_dr;
     }
-    return true;
+    return List::create(_["Q"]=NumericVector(Q.begin(),Q.end()),
+			_["dQ_da"]=NumericVector(dQ_da.begin(),dQ_da.end()),
+			_["dQ_dr"]=NumericVector(dQ_dr.begin(),dQ_dr.end())
+	    );
 }
 
 
@@ -332,6 +288,19 @@ std::vector<double> FLAN_MutationModel::computeCumulativeFunction(int m) {
     
     return cumsum;
 }
+
+
+// GF method
+
+
+// List FLAN_MutationModel::MutationGFEstimation(std::vector& mutantsCount){
+//   
+//   
+//   
+//   
+// }
+
+
 
 
 // double FLAN_MutationModel::computeGeneratingFunction(double z) {

@@ -5,41 +5,6 @@
 
 using namespace Rcpp;
 
-MATH_Integration::MATH_Integration(double reltol_) {
-      mReltol=reltol_;
-      mIntegrate=new Function("integrate");
-      List fns=Environment::global_env().get(".integrands");
-      fcts=List::create(
-        _["CLONE_P0_WD"]=fns["CLONE_P0_WD"],
-        _["CLONE_PK_WD"]=fns["CLONE_PK_WD"],
-        _["CLONE_dP0_dr_WD"]=fns["CLONE_dP0_dr_WD"],
-        _["CLONE_dPK_dr_WD"]=fns["CLONE_dPK_dr_WD"]
-      );
-//       fcts=ListOf<Function>(Environment::global_env()[".integrands"]);
-
-//       Rcpp_PreserveObject(as<SEXP>(fcts));
-//       fcts=fns;
-//       std::cout<<"Size de fns="<<fns.size()<<std::endl;
-//       std::cout<<"Size de fcts="<<fcts.size()<<std::endl;
-      std::cout<<"toto"<<fcts.size()<<std::endl;
-      mIntegrand=new Function("identity");  // allouer
-      std::cout<<"toto2"<<fcts.size()<<std::endl;
-
-}
-
-
-
-void MATH_Integration::setFunctionName(std::string name) {
-  std::cout<<"reltol=<"<<mReltol<<">"<<std::endl;
-      std::cout<<"Size de fcts="<<fcts.size()<<std::endl;
-//   Function func(fcts[name]);
-  *mIntegrand = fcts[name];
-}
-
-// List MATH_Integration::getFns(){
-//  return fcts;
-// }
-
 
 double MATH_Integration::testintegralFunction(double a, double b,double rho,double delta) {
   std::string name="CLONE_P0_WD";
@@ -57,12 +22,38 @@ double MATH_Integration::testintegralFunction(double a, double b,double rho,doub
 }
 
 
-double MATH_Integration::integralFunction(double a, double b,double rho,double delta,int k) {
+double MATH_Integration::integralFunction(double a, double b,double rho,double delta,double k) {
 
   List res;
-  if(k > 0) res=(*mIntegrate)(*mIntegrand, a, b, _["rel.tol"] = mReltol,_["rho"] =rho,_["delta"] =delta,_["k"]=k);
+  if(k > 0) res=(*mIntegrate)(*mIntegrand, a, b, _["rel.tol"] = mReltol,_["rho"] =rho,_["delta"] =delta,_["k"]=k);   
   else res=(*mIntegrate)(*mIntegrand, a, b, _["rel.tol"] = mReltol,_["rho"] =rho,_["delta"] =delta);
   double integ=as<double>(res["value"]);
-
+//   double integ=res["value"];
   return integ;
 }
+
+
+void MATH_Polynom::square(){
+  
+    int n=mCoef.size();
+    std::vector <double> Sq(2*n-1);
+ 
+   // Take ever term of first polynomial
+   int i=0;
+//    for (int i=0; i<m; i++)
+   for(std::vector<double>::iterator it1=mCoef.begin() ; it1!=mCoef.end() ; it1++,i++) {
+     // Multiply the current term of first polynomial
+     // with every term of second polynomial.
+     int j=0;
+     for(std::vector<double>::iterator it2=mCoef.begin() ; it2!=mCoef.end() ; it2++,j++) {
+         Sq[i+j] += (*it1)*(*it2);
+      }
+   }
+   setCoef(Sq);
+}
+
+
+
+
+
+

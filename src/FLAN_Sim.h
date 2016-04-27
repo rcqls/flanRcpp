@@ -20,7 +20,6 @@
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-// #include <Rcpp.h>
 
 #ifndef FLAN_SIM_H
 #define FLAN_SIM_H
@@ -35,15 +34,31 @@ public:
 
     /*! \brief  create an object */
 
-    FLAN_Sim();
+    FLAN_Sim(){};
 
-    FLAN_Sim(List args);
+    FLAN_Sim(List args){
+  
+      mMut=as<double>(args["mutations"]);
+      mFitness=as<double>(args["fitness"]);
+      mDeath=as<double>(args["death"]);
+      
+      List dist=args["dist"];
+      FLAN_Dist* mDist=new FLAN_Dist(dist);          // Lifetime Distribution
+      mDist->adjustGrowthRate(mDeath);   // Rescales parameter to unit growth rate
+      
+      
+      mMfn=as<double>(args["mfn"]);
+      mCvfn=as<double>(args["cvfn"]);
+      
+      mClone=new FLAN_SimClone(mFitness,mDeath,mDist);
+
+    };
 
     // DESTRUCTORS
 
     /*! \brief  destroy an object.
      */
-    ~FLAN_Sim();
+    ~FLAN_Sim(){};
 
 
 
@@ -66,7 +81,7 @@ private:
      * death: probability of death
      */
 
-    std::vector<long int> computeSampleMutantsNumber(int n) ;
+    NumericVector computeSampleMutantsNumber(int n) ;
 
     /* Generates a sample of size n of mutant counts, given a sample of final counts.
      *
@@ -76,8 +91,8 @@ private:
      * death: probability of death
      * finalCount:
      */
-    std::vector<long int> computeSampleMutantsNumber(int n,
-				    const std::vector<double>& finalCount) ;
+    NumericVector computeSampleMutantsNumber(int n,
+				    NumericVector& finalCount) ;
 public:
     /* Generates a sample of size n of couples (mutant count ; final count)
      * The final counts are sampled with the log-normal
